@@ -1,121 +1,109 @@
 name: Notify Make.com Webhook
 
-# ──────────────── TRIGGERS ────────────────
 on:
-  # ── Git data refs ────────────────────────
-  push:                       # any branch or tag :contentReference[oaicite:2]{index=2}
+  # ── Git refs ─────────────────────────────
+  push:
   create:
   delete:
 
-  # ── Pull-request lifecycle & reviews ─────
+  # ── Pull-request lifecycle ───────────────
   pull_request:
+  pull_request_review:
     types:
-      - opened
-      - reopened
-      - synchronize
-      - closed
-      - ready_for_review
-      - converted_to_draft
-      - assigned
-      - unassigned
-      - labeled
-      - unlabeled
-      - locked
-      - unlocked
-      - review_requested
-      - review_request_removed
-      - auto_merge_enabled
-      - auto_merge_disabled :contentReference[oaicite:3]{index=3}
-  pull_request_review:        # submitted / edited / dismissed :contentReference[oaicite:4]{index=4}
-    types: [submitted, edited, dismissed]
-  pull_request_review_comment:
-    types: [created, edited, deleted] :contentReference[oaicite:5]{index=5}
-  merge_group:                # merge-queue events
-
-  # ── Issues & comments ────────────────────
-  issues:
-    types:
-      - opened
+      - submitted
       - edited
-      - deleted
-      - transferred
-      - pinned
-      - unpinned
-      - closed
-      - reopened
-      - assigned
-      - unassigned
-      - labeled
-      - unlabeled
-      - locked
-      - unlocked
-      - milestoned
-      - demilestoned :contentReference[oaicite:6]{index=6}
-  issue_comment:
-    types: [created, edited, deleted]        # also covers PR comments per docs :contentReference[oaicite:7]{index=7}
-
-  # ── Discussions ──────────────────────────
-  discussion:
+      - dismissed
+  pull_request_review_comment:
     types:
       - created
       - edited
       - deleted
-      - answered
-      - unanswered
-      - transferred
+  merge_group:            # merge-queue checks :contentReference[oaicite:2]{index=2}
+
+  # ── Issues & comments ────────────────────
+  issues:
+  issue_comment:
+    types:
+      - created
+      - edited
+      - deleted
+
+  # ── Discussions ──────────────────────────
+  discussion:
+  discussion_comment:
+    types:
+      - created
+      - edited
+      - deleted
+
+  # ── Classic Projects (repo-level) ────────
+  project:
+    types:
+      - created
+      - edited
+      - closed
+      - reopened
+      - deleted
       - pinned
       - unpinned
-      - locked
-      - unlocked
-      - category_changed
-  discussion_comment:
-    types: [created, edited, deleted]
-
-  # ── Classic Projects (boards / cards) ────
-  project:
-    types: [created, edited, closed, reopened, deleted, pinned, unpinned, transferred] :contentReference[oaicite:8]{index=8}
+      - transferred
   project_card:
-    types: [created, edited, moved, converted, deleted] :contentReference[oaicite:9]{index=9}
+    types:
+      - created
+      - edited
+      - moved
+      - converted
+      - deleted
   project_column:
-    types: [created, edited, moved, deleted]
+    types:
+      - created
+      - edited
+      - moved
+      - deleted
 
-  # ── Repository administration ────────────
-  label:       {types: [created, edited, deleted]}
-  milestone:   {types: [created, closed, opened, edited, deleted]}
-  branch_protection_rule: {types: [created, edited, deleted]} :contentReference[oaicite:10]{index=10}
-  watch:       # stars / unstars :contentReference[oaicite:11]{index=11}
+  # ── Repository activity ──────────────────
   fork:
   public:
+  watch:                  # stars / un-stars
+  gollum:                 # wiki edits
   page_build:
-  gollum:      # wiki edits
 
-  # ── Releases & packages ───────────────────
+  # ── Releases & packages ──────────────────
   release:
-    types: [published, unpublished, created, edited, deleted, prereleased, released]
-  registry_package:
+    types:
+      - published
+      - unpublished
+      - created
+      - edited
+      - deleted
+      - prereleased
+      - released
 
   # ── CI / deployments / status checks ─────
-  check_run:   {types: [created, rerequested, completed]}
-  check_suite: {types: [completed]}
+  check_run:
+  check_suite:
   status:
   deployment:
   deployment_status:
 
-  # ── Manual & composite triggers ───────────
+  # ── Repository administration ────────────
+  label:
+  milestone:
+
+  # ── Manual & external triggers ───────────
   workflow_dispatch:
   repository_dispatch:
   workflow_run:
 
-# ──────────────── JOBS ────────────────
 jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
-      - name: Send event payload to Make.com
+      - name: Forward GitHub payload to Make.com
         env:
-          MAKE_WEBHOOK_URL: ${{ secrets.MAKE_WEBHOOK_URL }}   # Add this secret in repo settings
+          MAKE_WEBHOOK_URL: ${{ secrets.MAKE_WEBHOOK_URL }}
         run: |
-          echo "Sending $GITHUB_EVENT_NAME event to Make"
+          echo "Forwarding $GITHUB_EVENT_NAME to Make.com"
           curl -s -X POST \
                -H "Content-Type: application/json" \
                -d @"${GITHUB_EVENT_PATH}" \
