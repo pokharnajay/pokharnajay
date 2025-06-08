@@ -1,22 +1,138 @@
 name: Notify Make.com Webhook
 
+# ──────────────────────────────────────────────────────────────
+# TRIGGERS  ▸  practically every change in the repo
+# ──────────────────────────────────────────────────────────────
 on:
+  # ── Code pushes ─────────────────────────────────────────────
   push:
+    branches: ['**']        # all branches
+    tags:     ['**']        # all tags
+
+  # ── Pull-request lifecycle ─────────────────────────────────
   pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize        # commits pushed to the PR
+      - closed             # merged or declined
+      - ready_for_review
+      - edited
+      - assigned
+      - unassigned
+      - review_requested
+      - review_request_removed
+      - labeled
+      - unlabeled
+      - locked
+      - unlocked
+
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+
+  pull_request_review_comment:
+    types: [created, edited, deleted]
+
+  commit_comment:          # comments on individual commits
+    types: [created]
+
+  # ── Issue workflow ─────────────────────────────────────────
+  issues:
+    types:
+      - opened
+      - edited
+      - deleted
+      - transferred
+      - pinned
+      - unpinned
+      - closed
+      - reopened
+      - assigned
+      - unassigned
+      - labeled
+      - unlabeled
+      - locked
+      - unlocked
+      - milestoned
+      - demilestoned
+
+  issue_comment:
+    types: [created, edited, deleted]
+
+  # ── Classic Projects (repo-level) ──────────────────────────
   project:
+    types: [created, edited, closed, reopened, deleted, pinned, unpinned, transferred]
+
+  project_card:
+    types: [created, edited, moved, converted, deleted]
+
+  project_column:
     types: [created, edited, moved, deleted]
+
+  # ── Releases & version tags ────────────────────────────────
+  create:        # branch / tag creation
+  delete:        # branch / tag deletion
+
+  release:
+    types: [published, unpublished, created, edited, deleted, prereleased, released]
+
+  # ── Labels & milestones ────────────────────────────────────
+  label:
+    types: [created, edited, deleted]
+
+  milestone:
+    types: [created, closed, opened, edited, deleted]
+
+  # ── Discussions (if enabled) ───────────────────────────────
+  discussion:
+    types:
+      - created
+      - edited
+      - deleted
+      - answered
+      - unanswered
+      - transferred
+      - pinned
+      - unpinned
+      - locked
+      - unlocked
+      - category_changed
+
+  discussion_comment:
+    types: [created, edited, deleted]
+
+  # ── Checks & CI status updates ─────────────────────────────
+  check_run:
+    types: [created, rerequested, completed]
+
+  check_suite:
+    types: [requested, completed, rerequested]
+
+  # ── Deployments ────────────────────────────────────────────
+  deployment:
+  deployment_status:
+
+  # ── Repo popularity signals ────────────────────────────────
+  fork:
+  star:
+  watch:
+
+  # ── Manual trigger (for testing) ───────────────────────────
   workflow_dispatch:
 
+# ──────────────────────────────────────────────────────────────
+# JOB  ▸  forward raw GitHub payload to Make.com
+# ──────────────────────────────────────────────────────────────
 jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
       - name: Send event payload to Make.com
         env:
-          MAKE_WEBHOOK_URL: ${{ secrets.MAKE_WEBHOOK_URL }}
+          MAKE_WEBHOOK_URL: ${{ secrets.MAKE_WEBHOOK_URL }}   # <- store webhook URL as a secret
         run: |
           echo "Sending $GITHUB_EVENT_NAME event to Make"
-          curl -X POST \
-            -H "Content-Type: application/json" \
-            -d @${GITHUB_EVENT_PATH} \
-            "$MAKE_WEBHOOK_URL"
+          curl -s -X POST \
+               -H "Content-Type: application/json" \
+               -d @"${GITHUB_EVENT_PATH}" \
+               "$MAKE_WEBHOOK_URL"
