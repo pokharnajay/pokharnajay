@@ -1,0 +1,22 @@
+name: Notify Make.com Webhook
+
+on:
+  push:
+  pull_request:
+  project:
+    types: [created, edited, moved, deleted]
+  workflow_dispatch:
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send event payload to Make.com
+        env:
+          MAKE_WEBHOOK_URL: ${{ secrets.MAKE_WEBHOOK_URL }}
+        run: |
+          echo "Sending $GITHUB_EVENT_NAME event to Make"
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -d @${GITHUB_EVENT_PATH} \
+            "$MAKE_WEBHOOK_URL"
