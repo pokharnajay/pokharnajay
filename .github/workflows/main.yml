@@ -1,4 +1,4 @@
-name: Notify Make.com Webhook
+name: Github All Updates
 
 on:
   # ── Git refs ─────────────────────────────
