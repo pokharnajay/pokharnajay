@@ -8,7 +8,7 @@ on:
 
   # ── Pull-request lifecycle ───────────────
   pull_request:
-    types: [created,deleted,submitted, edited, dismissed]
+    types: [created, deleted, opened, closed, submitted, reopened, edited, dismissed]
   pull_request_review:
     types: [submitted, edited, dismissed]
   pull_request_review_comment:
