@@ -176,6 +176,45 @@ function TopNav({ time }) {
 }
 
 function SideRail({ active }) {
+  const railRef = useRef(null);
+  // Auto-hide. Show when actively scrolling (1.5s linger) OR when cursor near left edge.
+  useEffect(() => {
+    const el = railRef.current;
+    if (!el) return;
+    let hideTimer = null;
+    let scrolling = false;
+    let nearLeft = false;
+    const sync = () => {
+      if (scrolling || nearLeft) el.classList.add("is-visible");
+      else el.classList.remove("is-visible");
+    };
+    const onScroll = () => {
+      scrolling = true;
+      sync();
+      if (hideTimer) clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => {
+        scrolling = false;
+        sync();
+      }, 50);
+    };
+    const onMove = (e) => {
+      const want = e.clientX < 120;
+      if (want !== nearLeft) {
+        nearLeft = want;
+        sync();
+      }
+    };
+    // Show briefly on mount so user knows it's there
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("mousemove", onMove, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("mousemove", onMove);
+      if (hideTimer) clearTimeout(hideTimer);
+    };
+  }, [active]);
+
   if (active === "hero") return null;
   const items = [
     { id: "hero", label: "Index" },
@@ -187,7 +226,7 @@ function SideRail({ active }) {
     { id: "contact", label: "Contact" },
   ];
   return (
-    <div className="siderail">
+    <div ref={railRef} className="siderail">
       {items.map((it, i) => (
         <a key={it.id} href={`#${it.id}`} className={active === it.id ? "active" : ""}>
           <span className="num">{String(i + 1).padStart(2, "0")}</span>
