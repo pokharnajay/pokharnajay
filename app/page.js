@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from "react";
 const VAPI_PUBLIC_KEY = "2297c7cd-40fb-455b-aeb9-f6476a010ed1";
 const VAPI_ASSISTANT_ID = "51b17d14-55f2-4ab5-9ecd-a26497277b42";
 
+/* Module-level cross-component bridge for the VAPI → Hero audio reactivity.
+   VapiDemo writes here on volume-level / speech events; Hero animate loop reads. */
+const audioState = { active: false, level: 0, speaking: false };
+
 /* ============== Hooks ============== */
 
 function useCursor() {
@@ -233,6 +237,11 @@ function Hero() {
   const canvasRef = useRef(null);
   const headlineRef = useRef(null);
   const ctaRef = useRef(null);
+  // Shared cross-layer refs:
+  //   velocityRef → Layer 2 (Lenis velocity) writes here, Layer 1 (composite shader) reads
+  //   audioRef    → Layer 3 (VAPI analyser) writes here, animate loop reads
+  const velocityRef = useRef(0);
+  const audioRef = useRef({ active: false, low: 0, mid: 0, high: 0 });
   const [time, setTime] = useState("");
 
   useEffect(() => {
@@ -273,7 +282,7 @@ function Hero() {
     scene.add(outer);
     const ring = new THREE.LineSegments(
       new THREE.WireframeGeometry(new THREE.IcosahedronGeometry(2.1, 1)),
-      new THREE.LineBasicMaterial({ color: 0x2962ff, transparent: true, opacity: 0.4 })
+      new THREE.LineBasicMaterial({ color: 0x4a7dff, transparent: true, opacity: 0.55 })
     );
     ring.position.x = SPHERE_X;
     scene.add(ring);
@@ -296,6 +305,146 @@ function Hero() {
     );
     scene.add(particles);
 
+    /* ===== Layer 4 — scroll-driven shatter setup =====
+       Capture original wireframe vertex positions; we displace radially based on scroll progress. */
+    const outerOriginalPos = new Float32Array(outer.geometry.attributes.position.array);
+    const ringOriginalPos = new Float32Array(ring.geometry.attributes.position.array);
+    const morphRef = { value: 0 };
+    if (typeof window !== "undefined" && window.gsap && window.ScrollTrigger) {
+      window.gsap.registerPlugin(window.ScrollTrigger);
+      window.ScrollTrigger.create({
+        trigger: "#hero",
+        start: "top top",
+        end: "bottom top",
+        scrub: 0.6,
+        onUpdate: (self) => {
+          morphRef.value = self.progress; // 0..1
+        },
+      });
+    }
+
+    /* ===== Layer 1: post-processing pipeline =====
+       scene → brightPass → blurH → blurV → composite (with chromatic aberration + grain) → canvas */
+    const rtParams = { format: THREE.RGBAFormat, type: THREE.UnsignedByteType, depthBuffer: true, stencilBuffer: false };
+    const sceneRT = new THREE.WebGLRenderTarget(w, h, rtParams);
+    const brightRT = new THREE.WebGLRenderTarget(Math.max(2, Math.floor(w / 2)), Math.max(2, Math.floor(h / 2)), { ...rtParams, depthBuffer: false });
+    const blurHRT = new THREE.WebGLRenderTarget(brightRT.width, brightRT.height, { ...rtParams, depthBuffer: false });
+    const blurVRT = new THREE.WebGLRenderTarget(brightRT.width, brightRT.height, { ...rtParams, depthBuffer: false });
+
+    const fxScene = new THREE.Scene();
+    const fxCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const fxQuadGeo = new THREE.PlaneGeometry(2, 2);
+    const vsQuad = "varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position, 1.0); }";
+
+    const matBright = new THREE.ShaderMaterial({
+      vertexShader: vsQuad,
+      fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform float threshold;
+        varying vec2 vUv;
+        void main() {
+          vec4 c = texture2D(tDiffuse, vUv);
+          float l = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
+          float w = max(0.0, l - threshold) / max(0.001, 1.0 - threshold);
+          gl_FragColor = vec4(c.rgb * w, c.a);
+        }
+      `,
+      uniforms: { tDiffuse: { value: null }, threshold: { value: 0.55 } },
+      depthTest: false, depthWrite: false,
+    });
+    const matBlurH = new THREE.ShaderMaterial({
+      vertexShader: vsQuad,
+      fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform vec2 resolution;
+        varying vec2 vUv;
+        void main() {
+          vec2 step = vec2(1.0 / resolution.x, 0.0);
+          vec3 c = vec3(0.0);
+          c += texture2D(tDiffuse, vUv - 4.0 * step).rgb * 0.05;
+          c += texture2D(tDiffuse, vUv - 3.0 * step).rgb * 0.09;
+          c += texture2D(tDiffuse, vUv - 2.0 * step).rgb * 0.12;
+          c += texture2D(tDiffuse, vUv - 1.0 * step).rgb * 0.15;
+          c += texture2D(tDiffuse, vUv               ).rgb * 0.18;
+          c += texture2D(tDiffuse, vUv + 1.0 * step).rgb * 0.15;
+          c += texture2D(tDiffuse, vUv + 2.0 * step).rgb * 0.12;
+          c += texture2D(tDiffuse, vUv + 3.0 * step).rgb * 0.09;
+          c += texture2D(tDiffuse, vUv + 4.0 * step).rgb * 0.05;
+          gl_FragColor = vec4(c, 1.0);
+        }
+      `,
+      uniforms: { tDiffuse: { value: null }, resolution: { value: new THREE.Vector2(brightRT.width, brightRT.height) } },
+      depthTest: false, depthWrite: false,
+    });
+    const matBlurV = new THREE.ShaderMaterial({
+      vertexShader: vsQuad,
+      fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform vec2 resolution;
+        varying vec2 vUv;
+        void main() {
+          vec2 step = vec2(0.0, 1.0 / resolution.y);
+          vec3 c = vec3(0.0);
+          c += texture2D(tDiffuse, vUv - 4.0 * step).rgb * 0.05;
+          c += texture2D(tDiffuse, vUv - 3.0 * step).rgb * 0.09;
+          c += texture2D(tDiffuse, vUv - 2.0 * step).rgb * 0.12;
+          c += texture2D(tDiffuse, vUv - 1.0 * step).rgb * 0.15;
+          c += texture2D(tDiffuse, vUv               ).rgb * 0.18;
+          c += texture2D(tDiffuse, vUv + 1.0 * step).rgb * 0.15;
+          c += texture2D(tDiffuse, vUv + 2.0 * step).rgb * 0.12;
+          c += texture2D(tDiffuse, vUv + 3.0 * step).rgb * 0.09;
+          c += texture2D(tDiffuse, vUv + 4.0 * step).rgb * 0.05;
+          gl_FragColor = vec4(c, 1.0);
+        }
+      `,
+      uniforms: { tDiffuse: { value: null }, resolution: { value: new THREE.Vector2(brightRT.width, brightRT.height) } },
+      depthTest: false, depthWrite: false,
+    });
+    const matComposite = new THREE.ShaderMaterial({
+      vertexShader: vsQuad,
+      fragmentShader: `
+        uniform sampler2D tScene;
+        uniform sampler2D tBloom;
+        uniform float uBloom;
+        uniform float uVelocity;
+        uniform float uTime;
+        varying vec2 vUv;
+        void main() {
+          vec2 uv = vUv;
+          vec2 dir = uv - 0.5;
+          float aber = clamp(uVelocity, 0.0, 4.0) * 0.005;
+          vec4 sScene = texture2D(tScene, uv);
+          float r = texture2D(tScene, uv + dir * aber).r;
+          float g = sScene.g;
+          float b = texture2D(tScene, uv - dir * aber).b;
+          vec3 sceneCol = vec3(r, g, b);
+          vec3 bloom = texture2D(tBloom, uv).rgb;
+          vec3 col = sceneCol + bloom * uBloom;
+          float grain = (fract(sin(dot(uv * (1.0 + uTime * 0.0001), vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.025;
+          col += grain;
+          gl_FragColor = vec4(col, sScene.a);
+        }
+      `,
+      uniforms: {
+        tScene: { value: null },
+        tBloom: { value: null },
+        uBloom: { value: 0.85 },
+        uVelocity: { value: 0 },
+        uTime: { value: 0 },
+      },
+      transparent: true,
+      depthTest: false, depthWrite: false,
+    });
+
+    const fxQuad = new THREE.Mesh(fxQuadGeo, matBright);
+    fxScene.add(fxQuad);
+
+    const renderPass = (mat, target) => {
+      fxQuad.material = mat;
+      renderer.setRenderTarget(target || null);
+      renderer.render(fxScene, fxCam);
+    };
+
     let mx = 0,
       my = 0,
       scrollY = 0;
@@ -309,11 +458,39 @@ function Hero() {
     window.addEventListener("mousemove", onMove);
     window.addEventListener("scroll", onScroll, { passive: true });
 
+    // Layer 3 — smoothed audio reactivity state, lerped each frame from module-level audioState
+    const audioFade = { amp: 0, speak: 0, active: 0 };
+    // Cache base material values so we can restore them
+    const innerBaseOpacity = inner.material.opacity;
+    const outerBaseOpacity = outer.material.opacity;
+    const ringBaseOpacity = ring.material.opacity;
+    const colorRed = new THREE.Color(0xff2d2d);
+    const colorRedSoft = new THREE.Color(0xff6363);
+    const tmpColor = new THREE.Color();
+
     let rafId;
     const start = performance.now();
+    let lastT = start;
     const animate = () => {
-      const t = (performance.now() - start) / 1000;
+      const now = performance.now();
+      const t = (now - start) / 1000;
+      const dt = Math.min(0.05, (now - lastT) / 1000);
+      lastT = now;
       const sf = Math.min(scrollY / 800, 1);
+
+      // Layer 2 — pull Lenis velocity into smoothed velocityRef.
+      const rawVel = window.__lenis ? Math.abs(window.__lenis.velocity || 0) : 0;
+      const velTarget = Math.min(rawVel / 30, 4);
+      velocityRef.current += (velTarget - velocityRef.current) * Math.min(1, dt * 6);
+
+      // Layer 3 — smooth the raw audioState into audioFade
+      const ampTarget = audioState.active ? Math.min(1, audioState.level * 1.4) : 0;
+      const speakTarget = audioState.active && audioState.speaking ? 1 : 0;
+      const activeTarget = audioState.active ? 1 : 0;
+      audioFade.amp += (ampTarget - audioFade.amp) * Math.min(1, dt * 12);
+      audioFade.speak += (speakTarget - audioFade.speak) * Math.min(1, dt * 4);
+      audioFade.active += (activeTarget - audioFade.active) * Math.min(1, dt * 2.5);
+
       outer.rotation.x = t * 0.2 + my * 0.5 + sf * 0.5;
       outer.rotation.y = t * 0.3 + mx * 0.5;
       inner.rotation.x = -t * 0.15;
@@ -322,9 +499,89 @@ function Hero() {
       ring.rotation.y = -t * 0.15 - mx * 0.3;
       particles.rotation.y = t * 0.04;
       const pulse = 1 + Math.sin(t * 1.5) * 0.04;
-      outer.scale.setScalar(pulse * (1 - sf * 0.2));
+      // Layer 3 — audio-driven beat on top of base pulse
+      const audioBeat = audioFade.amp * 0.18; // up to +18% scale on loud audio
+      const baseScale = pulse * (1 - sf * 0.2) * (1 + audioBeat);
+      const vStretch = 1 + velocityRef.current * 0.06;
+      const vSquash = 1 - velocityRef.current * 0.025;
+      outer.scale.set(baseScale * vSquash, baseScale * vStretch, baseScale * vSquash);
+      ring.scale.set(vSquash * (1 + audioBeat * 0.4), vStretch * (1 + audioBeat * 0.4), vSquash * (1 + audioBeat * 0.4));
+      inner.scale.set(vSquash * (1 + audioBeat), vStretch * (1 + audioBeat), vSquash * (1 + audioBeat));
+
+      // Layer 3 — opacity & color shifts when call is live
+      inner.material.opacity = innerBaseOpacity + audioFade.active * (0.18 + audioFade.amp * 0.45);
+      outer.material.opacity = outerBaseOpacity + audioFade.amp * 0.12;
+      ring.material.opacity = ringBaseOpacity + audioFade.amp * 0.35;
+      // Color shift: agent speaking → softer red (cream-leaning); silent → deep red
+      tmpColor.copy(colorRed).lerp(colorRedSoft, audioFade.speak);
+      outer.material.color.copy(tmpColor);
+      inner.material.color.copy(tmpColor);
+
+      particles.material.size = 0.025 + velocityRef.current * 0.012 + audioFade.amp * 0.02;
+      particles.material.opacity = 0.6 + Math.min(0.3, velocityRef.current * 0.08) + audioFade.amp * 0.15;
+
+      // Layer 4 — scroll shatter: radially displace wireframe vertices.
+      // morph 0 = compact, 1 = exploded (vertices drift outward + extra rotation)
+      const m = morphRef.value;
+      if (m > 0.001) {
+        const factor = 1 + m * 1.6; // up to 2.6x outward
+        const jitter = m * 0.4;     // adds chaos
+        const op = outer.geometry.attributes.position.array;
+        for (let i = 0; i < op.length; i += 3) {
+          const ox = outerOriginalPos[i], oy = outerOriginalPos[i + 1], oz = outerOriginalPos[i + 2];
+          // Stable per-vertex pseudo-random direction nudge
+          const seed = i * 0.137;
+          const jx = Math.sin(seed) * jitter;
+          const jy = Math.cos(seed * 1.3) * jitter;
+          const jz = Math.sin(seed * 2.1) * jitter;
+          op[i] = ox * factor + jx;
+          op[i + 1] = oy * factor + jy;
+          op[i + 2] = oz * factor + jz;
+        }
+        outer.geometry.attributes.position.needsUpdate = true;
+        const rp = ring.geometry.attributes.position.array;
+        for (let i = 0; i < rp.length; i += 3) {
+          rp[i] = ringOriginalPos[i] * (1 + m * 1.2);
+          rp[i + 1] = ringOriginalPos[i + 1] * (1 + m * 1.2);
+          rp[i + 2] = ringOriginalPos[i + 2] * (1 + m * 1.2);
+        }
+        ring.geometry.attributes.position.needsUpdate = true;
+        // Fade out as it shatters; boost rotation for the chaos feel
+        outer.material.opacity = (outerBaseOpacity + audioFade.amp * 0.12) * (1 - m * 0.85);
+        ring.material.opacity = (ringBaseOpacity + audioFade.amp * 0.35) * (1 - m * 0.9);
+        inner.material.opacity = (innerBaseOpacity + audioFade.active * (0.18 + audioFade.amp * 0.45)) * (1 - m);
+        outer.rotation.y += m * 0.04;
+        ring.rotation.y -= m * 0.05;
+      } else if (outer.geometry.attributes.position.array[0] !== outerOriginalPos[0]) {
+        // Restore exact original on the way back to morph=0 (avoids drift)
+        outer.geometry.attributes.position.array.set(outerOriginalPos);
+        outer.geometry.attributes.position.needsUpdate = true;
+        ring.geometry.attributes.position.array.set(ringOriginalPos);
+        ring.geometry.attributes.position.needsUpdate = true;
+      }
+
       camera.position.z = 13.2 + sf * 2;
+
+      // 1. scene → sceneRT
+      renderer.setRenderTarget(sceneRT);
+      renderer.clear();
       renderer.render(scene, camera);
+      // 2. brightpass → brightRT
+      matBright.uniforms.tDiffuse.value = sceneRT.texture;
+      renderPass(matBright, brightRT);
+      // 3. blurH → blurHRT
+      matBlurH.uniforms.tDiffuse.value = brightRT.texture;
+      renderPass(matBlurH, blurHRT);
+      // 4. blurV → blurVRT
+      matBlurV.uniforms.tDiffuse.value = blurHRT.texture;
+      renderPass(matBlurV, blurVRT);
+      // 5. composite → canvas
+      matComposite.uniforms.tScene.value = sceneRT.texture;
+      matComposite.uniforms.tBloom.value = blurVRT.texture;
+      matComposite.uniforms.uVelocity.value = velocityRef.current;
+      matComposite.uniforms.uTime.value = t;
+      renderPass(matComposite, null);
+
       rafId = requestAnimationFrame(animate);
     };
     animate();
@@ -335,6 +592,14 @@ function Hero() {
       camera.aspect = w2 / h2;
       camera.updateProjectionMatrix();
       renderer.setSize(w2, h2, false);
+      sceneRT.setSize(w2, h2);
+      const bw = Math.max(2, Math.floor(w2 / 2)),
+        bh = Math.max(2, Math.floor(h2 / 2));
+      brightRT.setSize(bw, bh);
+      blurHRT.setSize(bw, bh);
+      blurVRT.setSize(bw, bh);
+      matBlurH.uniforms.resolution.value.set(bw, bh);
+      matBlurV.uniforms.resolution.value.set(bw, bh);
     };
     window.addEventListener("resize", onResize);
     return () => {
@@ -342,6 +607,21 @@ function Hero() {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onResize);
+      // Layer 4 — kill ScrollTriggers we created (Fast Refresh safety)
+      if (typeof window !== "undefined" && window.ScrollTrigger) {
+        window.ScrollTrigger.getAll().forEach((st) => {
+          if (st.trigger && st.trigger.id === "hero") st.kill();
+        });
+      }
+      sceneRT.dispose();
+      brightRT.dispose();
+      blurHRT.dispose();
+      blurVRT.dispose();
+      matBright.dispose();
+      matBlurH.dispose();
+      matBlurV.dispose();
+      matComposite.dispose();
+      fxQuadGeo.dispose();
       renderer.dispose();
     };
   }, []);
@@ -620,20 +900,37 @@ function VapiDemo() {
       v.on("call-start", () => {
         setConnecting(false);
         setCalling(true);
+        audioState.active = true;
+        audioState.level = 0;
+        audioState.speaking = false;
       });
       v.on("call-end", () => {
         setCalling(false);
         setConnecting(false);
+        audioState.active = false;
+        audioState.level = 0;
+        audioState.speaking = false;
       });
       v.on("error", (e) => {
         setError(e?.message || "Call error");
         setCalling(false);
         setConnecting(false);
+        audioState.active = false;
       });
       v.on("message", (m) => {
         if (m.type === "transcript" && m.transcriptType === "final") {
           setMessages((prev) => [...prev, { role: m.role === "assistant" ? "agent" : "user", text: m.transcript }]);
         }
+      });
+      // Layer 3 — audio reactivity. VAPI emits 'volume-level' (0..1) for agent audio.
+      v.on("volume-level", (level) => {
+        audioState.level = typeof level === "number" ? level : 0;
+      });
+      v.on("speech-start", () => {
+        audioState.speaking = true;
+      });
+      v.on("speech-end", () => {
+        audioState.speaking = false;
       });
     } catch (e) {
       // SDK not loaded
