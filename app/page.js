@@ -178,10 +178,6 @@ function Hero() {
         </div>
       </div>
 
-      <div className="hero-scroll-hint">
-        <span>Scroll to engage</span>
-        <span className="arrow"></span>
-      </div>
     </section>
   );
 }
@@ -416,10 +412,12 @@ function Tools() {
       ["GoHighLevel", "crm + workflows", true],
       ["Pipedream", "code-first"],
       ["Airtable", "db + scripts", true],
-      ["Monday.com", "ops"],
-      ["ClickUp", "tasks"],
-      ["Notion", "docs"],
-      ["Google Sheets", "+ apps script"],
+      ["Stripe", "payments", true],
+      ["Whop", "payments"],
+      ["eSignatures.io", "contracts", true],
+      ["ClickSend", "sms", true],
+      ["Twilio", "sms + voice"],
+      ["Cal.com", "scheduling", true],
     ],
     [
       ["VAPI", "voice ai", true],
@@ -430,36 +428,10 @@ function Tools() {
       ["TypeScript", "primary"],
       ["Node.js", "runtime"],
       ["Python", "scripts + ml"],
-      ["React", "internal tools"],
-      ["Apps Script", "google"],
-    ],
-    [
-      ["Stripe", "payments", true],
-      ["Whop", "payments"],
-      ["Plug & Pay", "payments"],
-      ["Paddle", "payments"],
-      ["eSignatures.io", "contracts", true],
-      ["PandaDoc", "contracts"],
-      ["DocuSign", "contracts"],
-      ["GoCanvas", "pdf api"],
-      ["ClickSend", "sms", true],
-      ["Twilio", "sms + voice"],
-      ["Postmark", "email"],
-      ["Mailgun", "email"],
-    ],
-    [
-      ["HubSpot", "crm"],
-      ["Pipedrive", "crm"],
-      ["Close.com", "crm"],
-      ["Salesforce", "crm"],
-      ["Cal.com", "scheduling", true],
-      ["Calendly", "scheduling"],
-      ["Google Calendar", "api"],
-      ["Slack", "messaging + apps"],
-      ["Ubuntu", "self-hosted", true],
       ["Cloudflare", "tunnels"],
       ["Docker", "containers"],
       ["GitHub", "git"],
+      ["Slack", "messaging"],
     ],
   ];
 

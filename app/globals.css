@@ -142,6 +142,8 @@ a { color: inherit; text-decoration: none; }
 .btn:hover .arrow { transform: translate(4px,-4px); }
 .btn.primary { border-color: var(--accent); color: var(--accent); }
 .btn.primary::before { background: var(--accent); }
+/* Specificity bump so the green-on-green isn't kept when hovered on primary. */
+.btn.primary:hover { color: #000; }
 
 /* ===== Cursor ===== */
 @media (hover: hover) and (pointer: fine) {
@@ -280,22 +282,6 @@ a { color: inherit; text-decoration: none; }
 .hero-stats .stat .v.accent { color: var(--accent); }
 .hero-cta-wrap { display: flex; flex-direction: column; gap: 12px; align-items: flex-end; }
 
-.hero-scroll-hint {
-  position: absolute;
-  bottom: 24px; left: 50%;
-  transform: translateX(-50%);
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--fg-3);
-  z-index: 4;
-  display: flex; flex-direction: column; align-items: center; gap: 8px;
-}
-.hero-scroll-hint .arrow {
-  width: 1px; height: 32px; background: var(--accent);
-  animation: scrollPulse 1.6s infinite;
-}
 @keyframes scrollPulse {
   0% { transform: scaleY(0); transform-origin: top; }
   50% { transform: scaleY(1); transform-origin: top; }
@@ -641,37 +627,51 @@ a { color: inherit; text-decoration: none; }
    ============================================================ */
 .tools {
   position: relative;
-  padding: 140px 32px 140px;
+  min-height: 100vh;
+  padding: clamp(72px, 11vh, 140px) 32px clamp(72px, 11vh, 140px);
   border-top: 1px solid var(--line);
   background: var(--bg);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
-.tools-inner { max-width: 1480px; margin: 0 auto; }
+.tools-inner {
+  max-width: 1480px;
+  margin: 0 auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex: 1;
+  gap: clamp(36px, 6vh, 72px);
+}
 .tools-head {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
-  gap: 64px;
+  gap: clamp(28px, 4vw, 64px);
   align-items: end;
-  margin-bottom: 80px;
+  margin-bottom: clamp(36px, 6vh, 80px);
 }
 .tools-head h2 {
   font-family: var(--display);
-  font-size: clamp(48px, 7vw, 112px);
+  /* Cap by viewport-height so the headline shrinks on short laptop screens. */
+  font-size: clamp(40px, min(7vw, 11vh), 112px);
   line-height: 0.95;
   letter-spacing: -0.03em;
   font-weight: 500;
 }
 .tools-head h2 em { color: var(--accent); font-style: italic; font-weight: 400; }
 .tools-head .lede {
-  font-size: 16px;
-  line-height: 1.6;
+  font-size: clamp(13px, 1.1vw, 16px);
+  line-height: 1.55;
   color: var(--fg-2);
   max-width: 56ch;
 }
 
 .tools-rails {
   display: flex; flex-direction: column;
-  gap: 14px;
+  gap: clamp(8px, 1.5vh, 14px);
 }
 .tools-rail {
   --speed: 80s;
@@ -692,11 +692,11 @@ a { color: inherit; text-decoration: none; }
 }
 .tool-chip {
   display: inline-flex; align-items: center; gap: 10px;
-  padding: 14px 22px;
+  padding: clamp(8px, 1.6vh, 14px) clamp(14px, 1.7vw, 22px);
   border: 1px solid var(--line-2);
   background: var(--bg-2);
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: clamp(11px, 1vw, 13px);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--fg);
@@ -718,7 +718,7 @@ a { color: inherit; text-decoration: none; }
 .tool-chip.featured { color: var(--accent); border-color: var(--accent); }
 
 .tools-foot {
-  margin-top: 80px;
+  margin-top: clamp(36px, 6vh, 80px);
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 1px;
@@ -727,7 +727,7 @@ a { color: inherit; text-decoration: none; }
 }
 .tools-foot .cell {
   background: var(--bg);
-  padding: 28px 24px;
+  padding: clamp(16px, 2.6vh, 28px) clamp(16px, 1.5vw, 24px);
 }
 .tools-foot .cell .k {
   font-family: var(--mono);
@@ -735,18 +735,18 @@ a { color: inherit; text-decoration: none; }
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--fg-3);
-  margin-bottom: 10px;
+  margin-bottom: clamp(6px, 1vh, 10px);
 }
 .tools-foot .cell .v {
   font-family: var(--display);
-  font-size: 44px;
+  font-size: clamp(28px, min(3.4vw, 5vh), 44px);
   line-height: 1;
   letter-spacing: -0.02em;
   color: var(--fg);
 }
 .tools-foot .cell .v .accent { color: var(--accent); }
 .tools-foot .cell .sub {
-  margin-top: 8px;
+  margin-top: clamp(6px, 1vh, 8px);
   font-family: var(--mono);
   font-size: 11px;
   color: var(--fg-3);
@@ -764,7 +764,7 @@ a { color: inherit; text-decoration: none; }
 .contact {
   position: relative;
   min-height: 100vh;
-  padding: 120px 32px 60px;
+  padding: clamp(72px, 11vh, 120px) 32px clamp(36px, 6vh, 60px);
   border-top: 1px solid var(--line);
   background: var(--bg);
   display: flex; flex-direction: column; justify-content: space-between;
@@ -773,11 +773,15 @@ a { color: inherit; text-decoration: none; }
 
 .contact-headline {
   font-family: var(--display);
-  font-size: clamp(64px, 13vw, 220px);
+  /* On a 13" MBA (1440×900), the entire contact section needs ~900px total.
+     Headline + margin + grid + foot + paddings must fit. The vh-cap is the
+     critical lever — we want 2 lines × line-height(0.92) plus margin to
+     leave ~480px for the rest of the section. */
+  font-size: clamp(48px, min(11vw, 13vh), 180px);
   line-height: 0.92;
   letter-spacing: -0.04em;
   font-weight: 500;
-  margin-bottom: 64px;
+  margin-bottom: clamp(20px, 4vh, 56px);
 }
 .contact-headline em { color: var(--accent); font-style: italic; font-weight: 400; }
 .contact-headline .out { -webkit-text-stroke: 1.5px var(--fg); color: transparent; }
@@ -785,14 +789,14 @@ a { color: inherit; text-decoration: none; }
 .contact-grid {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
-  gap: 80px;
-  padding-top: 32px;
+  gap: clamp(32px, 5vw, 80px);
+  padding-top: clamp(20px, 3vh, 32px);
   border-top: 1px solid var(--line);
 }
 
 .contact-pitch {
-  font-size: 17px;
-  line-height: 1.6;
+  font-size: clamp(14px, 1.2vw, 17px);
+  line-height: 1.55;
   color: var(--fg-2);
   max-width: 56ch;
 }
@@ -805,7 +809,7 @@ a { color: inherit; text-decoration: none; }
 }
 .contact-channel {
   position: relative;
-  padding: 22px 24px;
+  padding: clamp(12px, 1.8vh, 22px) 24px;
   display: flex; align-items: center; justify-content: space-between;
   border-bottom: 1px solid var(--line);
   transition: background .25s, color .25s, padding .25s;
@@ -825,13 +829,13 @@ a { color: inherit; text-decoration: none; }
 .contact-channel:hover { color: #000; padding-left: 36px; }
 .contact-channel .k { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-3); margin-bottom: 4px; }
 .contact-channel:hover .k { color: #000; opacity: 0.7; }
-.contact-channel .v { font-family: var(--display); font-size: 26px; letter-spacing: -0.01em; }
-.contact-channel .arrow { font-family: var(--mono); font-size: 22px; transition: transform .25s; }
+.contact-channel .v { font-family: var(--display); font-size: clamp(18px, 1.8vw, 26px); letter-spacing: -0.01em; }
+.contact-channel .arrow { font-family: var(--mono); font-size: clamp(16px, 1.6vw, 22px); transition: transform .25s; }
 .contact-channel:hover .arrow { transform: translate(6px, -6px); }
 
 .contact-foot {
-  margin-top: 80px;
-  padding-top: 24px;
+  margin-top: clamp(28px, 5vh, 80px);
+  padding-top: clamp(16px, 2.5vh, 24px);
   border-top: 1px solid var(--line);
   display: flex; justify-content: space-between; gap: 12px;
   font-family: var(--mono);
