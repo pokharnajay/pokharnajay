@@ -18,6 +18,32 @@ function IntroVeil() {
 /* ============== Topbar ============== */
 
 function Topbar() {
+  /* Auto-scroll: glides the viewport from current position to the bottom of
+     the page. Linear easing + slow distance-scaled duration → constant
+     reading-pace travel rather than a fast initial coast that decelerates.
+     Roughly: ~250 pixels of scroll per second, clamped to 10–40s. */
+  const onAutoScroll = () => {
+    if (typeof window === "undefined") return;
+    const target = document.documentElement.scrollHeight - window.innerHeight;
+    const distance = Math.max(0, target - window.scrollY);
+    const duration = Math.min(40, Math.max(10, distance / 250));
+    if (window.__lenis) {
+      window.__lenis.scrollTo(target, {
+        duration,
+        easing: (t) => t, // linear — constant speed feels deliberate, not coasting
+      });
+    } else {
+      // Native fallback can't do linear smooth scroll, so we hand-roll a RAF.
+      const start = window.scrollY;
+      const t0 = performance.now();
+      const tick = (now) => {
+        const p = Math.min(1, (now - t0) / (duration * 1000));
+        window.scrollTo(0, start + (target - start) * p);
+        if (p < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
+  };
   return (
     <header className="topbar">
       <a href="#top" className="brand">
@@ -30,8 +56,20 @@ function Topbar() {
         <a href="#contact">Contact</a>
       </nav>
       <div className="status">
-        <span className="dot"></span>
-        <span>Available · Q2</span>
+        <div className="status-row">
+          <span className="dot"></span>
+          <span>Available · Q2</span>
+        </div>
+        <button
+          type="button"
+          className="auto-scroll-btn"
+          onClick={onAutoScroll}
+          aria-label="Auto-scroll to bottom"
+          title="Auto-scroll to bottom"
+        >
+          <span className="auto-scroll-arrow">↓</span>
+          <span className="auto-scroll-label">Auto-scroll</span>
+        </button>
       </div>
     </header>
   );
@@ -957,26 +995,84 @@ export default function Page() {
     };
     window.addEventListener("mousemove", onMove);
     tick();
-    const enter = () => document.body.classList.add("hovering");
-    const leave = () => document.body.classList.remove("hovering");
-    const interactive = document.querySelectorAll("a, button, .btn, [data-cursor]");
-    interactive.forEach((el) => {
-      el.addEventListener("mouseenter", enter);
-      el.addEventListener("mouseleave", leave);
-    });
+    /* Delegated hover detection — survives React re-renders and missed
+       mouseleave events. Using mouseover/mouseout (which bubble) on document
+       means we always know the live target, not a stale snapshot from page
+       load. The relatedTarget check prevents flicker when moving between
+       two interactive elements. */
+    const SELECTOR = "a, button, .btn, [data-cursor]";
+    const onOver = (e) => {
+      if (e.target.closest && e.target.closest(SELECTOR)) {
+        document.body.classList.add("hovering");
+      }
+    };
+    const onOut = (e) => {
+      const from = e.target.closest && e.target.closest(SELECTOR);
+      if (!from) return;
+      const to = e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest(SELECTOR);
+      if (!to) document.body.classList.remove("hovering");
+    };
+    /* Belt-and-suspenders: when the pointer leaves the window entirely
+       (into the browser chrome or another monitor), clear hover state. */
+    const onWindowOut = () => document.body.classList.remove("hovering");
+
+    /* When the pointer re-enters the page or the window regains focus,
+       force a cursor repaint by briefly toggling the documentElement style.
+       Chromium/Brave can otherwise leave a stale OS cursor visible until
+       a repaint is triggered. */
+    const repaintCursor = () => {
+      const html = document.documentElement;
+      html.style.cursor = "auto";
+      // Next frame, restore — the toggle forces the browser to re-resolve
+      // the cursor against our `cursor: none` rule.
+      requestAnimationFrame(() => {
+        html.style.cursor = "";
+      });
+    };
+    document.addEventListener("mouseenter", repaintCursor);
+    window.addEventListener("focus", repaintCursor);
+    document.addEventListener("mouseover", onOver);
+    document.addEventListener("mouseout", onOut);
+    document.addEventListener("mouseleave", onWindowOut);
+    window.addEventListener("blur", onWindowOut);
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("mousemove", onMove);
-      interactive.forEach((el) => {
-        el.removeEventListener("mouseenter", enter);
-        el.removeEventListener("mouseleave", leave);
-      });
+      document.removeEventListener("mouseover", onOver);
+      document.removeEventListener("mouseout", onOut);
+      document.removeEventListener("mouseleave", onWindowOut);
+      window.removeEventListener("blur", onWindowOut);
+      document.removeEventListener("mouseenter", repaintCursor);
+      window.removeEventListener("focus", repaintCursor);
     };
   }, []);
 
-  /* Effect 2: smooth-scroll for anchor links — idempotent. */
+  /* Effect 2: Lenis smooth-scroll + anchor link routing — idempotent.
+     Lenis is the modern Locomotive-style smooth-scroll lib. We expose the
+     instance on window.__lenis so the auto-scroll button (and anything else)
+     can call into it. ScrollTrigger is told to refresh on Lenis scroll so
+     pinned scenes stay in sync. */
   useEffect(() => {
     if (typeof window === "undefined") return;
+    let lenis;
+    let rafId;
+    if (window.Lenis) {
+      lenis = new window.Lenis({
+        duration: 1.1,
+        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+        smoothWheel: true,
+        smoothTouch: false,
+      });
+      window.__lenis = lenis;
+      const raf = (time) => {
+        lenis.raf(time);
+        rafId = requestAnimationFrame(raf);
+      };
+      rafId = requestAnimationFrame(raf);
+      if (window.ScrollTrigger) {
+        lenis.on("scroll", window.ScrollTrigger.update);
+      }
+    }
     const onClick = (e) => {
       const a = e.target.closest('a[href^="#"]');
       if (!a) return;
@@ -984,11 +1080,19 @@ export default function Page() {
       const tgt = document.getElementById(id);
       if (tgt) {
         e.preventDefault();
-        window.scrollTo({ top: tgt.offsetTop, behavior: "smooth" });
+        if (lenis) lenis.scrollTo(tgt, { offset: 0 });
+        else window.scrollTo({ top: tgt.offsetTop, behavior: "smooth" });
       }
     };
     document.addEventListener("click", onClick);
-    return () => document.removeEventListener("click", onClick);
+    return () => {
+      document.removeEventListener("click", onClick);
+      if (rafId) cancelAnimationFrame(rafId);
+      if (lenis) {
+        lenis.destroy();
+        if (window.__lenis === lenis) delete window.__lenis;
+      }
+    };
   }, []);
 
   /* Effect 3: GSAP entrance + ScrollTriggers — run-once via ref guard. */

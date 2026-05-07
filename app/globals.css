@@ -33,6 +33,9 @@ html, body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
+/* Hide the scrollbar so hovering it can't resurface the OS cursor. Scroll still works via wheel/Lenis. */
+html { scrollbar-width: none; }
+html::-webkit-scrollbar, body::-webkit-scrollbar { width: 0; height: 0; display: none; }
 html { scroll-behavior: auto; }
 body {
   overflow-x: hidden;
@@ -82,7 +85,10 @@ body.intro-done .intro-veil { display: none; }
 
 /* ===== Topbar ===== */
 .topbar {
-  position: fixed; top: 0; left: 0; right: 0;
+  position: fixed; top: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 1480px;
   z-index: 100;
   display: flex; align-items: center; justify-content: space-between;
   padding: 18px 32px;
@@ -117,8 +123,44 @@ body.intro-done .intro-veil { display: none; }
 }
 .topbar nav a:hover { color: var(--accent); opacity: 1; }
 .topbar .status {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
   font-variant-numeric: tabular-nums;
+}
+.topbar .status .status-row {
+  display: flex; align-items: center; gap: 8px;
+}
+
+/* Auto-scroll button — hidden until the user hovers the status block.
+   Slides up + fades in. Click triggers Lenis scrollTo bottom. */
+.topbar .auto-scroll-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--accent);
+  padding: 5px 9px;
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease, background 0.2s ease;
+}
+.topbar .status:hover .auto-scroll-btn,
+.topbar .auto-scroll-btn:hover,
+.topbar .auto-scroll-btn:focus-visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.topbar .auto-scroll-btn:hover {
+  background: var(--accent);
+  color: #000;
+}
+.topbar .auto-scroll-arrow {
+  font-size: 12px;
+  line-height: 1;
 }
 .topbar .status .dot {
   width: 7px; height: 7px; border-radius: 50%;
@@ -183,10 +225,14 @@ body.intro-done .intro-veil { display: none; }
 .btn.primary:hover { color: #000; }
 
 /* ===== Cursor =====
-   Force `cursor: none` on every element with !important so no user-agent or
-   element-specific override can re-show the OS cursor. Restored only on
-   touch-only devices where the custom cursor doesn't make sense. */
-*, *::before, *::after { cursor: none !important; }
+   Force the OS cursor to disappear on every element. Chromium/Brave can
+   resurface the system cursor after entering the viewport from the OS
+   chrome (or hovering the scrollbar) even when `cursor: none` is set —
+   so we layer a transparent 1×1 PNG cursor with `none` as the fallback.
+   Even if `none` is briefly ignored, the image cursor is invisible. */
+html, body, *, *::before, *::after {
+  cursor: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=") 0 0, none !important;
+}
 
 .cursor-ring {
   position: fixed; top: 0; left: 0;
@@ -208,8 +254,8 @@ body.intro-done .intro-veil { display: none; }
   pointer-events: none;
   transform: translate(-50%, -50%);
 }
-body.hovering .cursor-ring { width: 56px; height: 56px; background: var(--accent); }
-body.hovering .cursor-dot { opacity: 0; }
+body.hovering .cursor-ring { width: 36px; height: 36px; border-width: 1.5px; }
+body.hovering .cursor-dot { background: var(--accent); }
 
 /* Touch-only devices: restore OS cursor and hide the custom one. */
 @media (hover: none) and (pointer: coarse) {

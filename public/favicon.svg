@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <text x="32" y="52"
+        text-anchor="middle"
+        font-family="'Space Grotesk', 'Inter Tight', -apple-system, system-ui, sans-serif"
+        font-weight="700"
+        font-size="58"
+        letter-spacing="-3"
+        fill="#a3ff12">JP</text>
+</svg>

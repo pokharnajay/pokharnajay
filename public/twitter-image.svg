@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <pattern id="grid2" x="0" y="0" width="60" height="60" patternUnits="userSpaceOnUse">
+      <path d="M 60 0 L 0 0 0 60" fill="none" stroke="#1d2128" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="vig2" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#07080a" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.7"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="#07080a"/>
+  <rect width="1200" height="630" fill="url(#grid2)" opacity="0.5"/>
+  <rect width="1200" height="630" fill="url(#vig2)"/>
+
+  <g transform="translate(64, 56)">
+    <rect width="48" height="48" fill="none" stroke="#a3ff12" stroke-width="2"/>
+    <text x="24" y="33" text-anchor="middle"
+          font-family="'Space Grotesk', system-ui, sans-serif" font-weight="700" font-size="22" fill="#a3ff12">JP</text>
+    <text x="64" y="32"
+          font-family="'JetBrains Mono', monospace" font-weight="500" font-size="14" letter-spacing="3" fill="#e8ecf2">JAY POKHARNA</text>
+  </g>
+
+  <text x="64" y="320"
+        font-family="'Space Grotesk', system-ui, sans-serif" font-weight="500"
+        font-size="84" letter-spacing="-3" fill="#e8ecf2">
+    <tspan x="64" dy="0">Half code,</tspan>
+    <tspan x="64" dy="92" font-style="italic" fill="#a3ff12">half no-code,</tspan>
+    <tspan x="64" dy="92">all production.</tspan>
+  </text>
+
+  <g transform="translate(64, 590)">
+    <circle cx="6" cy="6" r="6" fill="#a3ff12"/>
+    <text x="22" y="11" font-family="'JetBrains Mono', monospace" font-size="13" letter-spacing="3" fill="#a3ff12">JAY POKHARNA · AI &amp; AUTOMATION ENGINEER</text>
+  </g>
+</svg>

@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <pattern id="grid" x="0" y="0" width="60" height="60" patternUnits="userSpaceOnUse">
+      <path d="M 60 0 L 0 0 0 60" fill="none" stroke="#1d2128" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="vignette" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#07080a" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.7"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="20%" cy="60%" r="50%">
+      <stop offset="0%" stop-color="#a3ff12" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#a3ff12" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Base -->
+  <rect width="1200" height="630" fill="#07080a"/>
+  <rect width="1200" height="630" fill="url(#grid)" opacity="0.5"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  <rect width="1200" height="630" fill="url(#vignette)"/>
+
+  <!-- Top brand mark -->
+  <g transform="translate(64, 56)">
+    <rect width="48" height="48" fill="none" stroke="#a3ff12" stroke-width="2"/>
+    <text x="24" y="33"
+          text-anchor="middle"
+          font-family="'Space Grotesk', system-ui, sans-serif"
+          font-weight="700" font-size="22"
+          fill="#a3ff12">JP</text>
+    <text x="64" y="32"
+          font-family="'JetBrains Mono', ui-monospace, monospace"
+          font-weight="500" font-size="14"
+          letter-spacing="3"
+          fill="#e8ecf2">JAY POKHARNA</text>
+  </g>
+
+  <!-- Right-side mini node graph -->
+  <g transform="translate(820, 70)" opacity="0.9">
+    <line x1="40"  y1="60"  x2="160" y2="20"  stroke="#a3ff12" stroke-width="1" stroke-dasharray="4 4" opacity="0.6"/>
+    <line x1="40"  y1="60"  x2="160" y2="100" stroke="#a3ff12" stroke-width="1" stroke-dasharray="4 4" opacity="0.6"/>
+    <line x1="160" y1="20"  x2="280" y2="50"  stroke="#a3ff12" stroke-width="1" stroke-dasharray="4 4" opacity="0.6"/>
+    <line x1="160" y1="100" x2="280" y2="50"  stroke="#a3ff12" stroke-width="1" stroke-dasharray="4 4" opacity="0.6"/>
+    <line x1="160" y1="100" x2="280" y2="140" stroke="#a3ff12" stroke-width="1" stroke-dasharray="4 4" opacity="0.6"/>
+
+    <g transform="translate(20, 50)">
+      <rect width="40" height="22" fill="#0d0f12" stroke="#a3ff12" stroke-width="1.5"/>
+      <text x="20" y="15" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-size="10" fill="#a3ff12">TRG</text>
+    </g>
+    <g transform="translate(140, 10)">
+      <rect width="40" height="22" fill="#0d0f12" stroke="#aab1bd" stroke-width="1"/>
+      <text x="20" y="15" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-size="10" fill="#aab1bd">DB</text>
+    </g>
+    <g transform="translate(140, 90)">
+      <rect width="40" height="22" fill="#0d0f12" stroke="#aab1bd" stroke-width="1"/>
+      <text x="20" y="15" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-size="10" fill="#aab1bd">FX</text>
+    </g>
+    <g transform="translate(260, 40)">
+      <rect width="40" height="22" fill="#0d0f12" stroke="#aab1bd" stroke-width="1"/>
+      <text x="20" y="15" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-size="10" fill="#aab1bd">$</text>
+    </g>
+    <g transform="translate(260, 130)">
+      <rect width="40" height="22" fill="#0d0f12" stroke="#aab1bd" stroke-width="1"/>
+      <text x="20" y="15" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-size="10" fill="#aab1bd">SMS</text>
+    </g>
+
+    <circle cx="80"  cy="40"  r="3" fill="#a3ff12">
+      <animate attributeName="opacity" values="0;1;0" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="220" cy="40"  r="3" fill="#a3ff12">
+      <animate attributeName="opacity" values="0;1;0" dur="2s" begin="0.5s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+
+  <!-- Headline -->
+  <g transform="translate(64, 320)">
+    <text font-family="'Space Grotesk', system-ui, sans-serif" font-weight="500"
+          font-size="92" letter-spacing="-3" fill="#e8ecf2">
+      <tspan x="0" dy="0">AI &amp; Automation</tspan>
+      <tspan x="0" dy="100" font-style="italic" font-weight="400" fill="#a3ff12">Engineer.</tspan>
+    </text>
+  </g>
+
+  <!-- Tagline -->
+  <text x="64" y="555"
+        font-family="'Inter Tight', -apple-system, sans-serif"
+        font-size="22" fill="#aab1bd" font-weight="400">
+    Operational backbones for businesses that have outgrown manual work.
+  </text>
+
+  <!-- Footer status -->
+  <g transform="translate(64, 590)">
+    <circle cx="6" cy="6" r="6" fill="#a3ff12"/>
+    <text x="22" y="11"
+          font-family="'JetBrains Mono', monospace"
+          font-size="13" letter-spacing="3" fill="#a3ff12" font-weight="500">AVAILABLE · Q2</text>
+    <text x="240" y="11"
+          font-family="'JetBrains Mono', monospace"
+          font-size="13" letter-spacing="3" fill="#6b7280" font-weight="500">POKHARNAJAY.COM</text>
+  </g>
+</svg>
