@@ -101,23 +101,27 @@ function useSmoothScroll() {
 
 function useReveal() {
   useEffect(() => {
+    // Bidirectional: add .in on enter, remove .in on exit.
+    // The CSS transition on .reveal runs symmetrically forward/reverse.
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) e.target.classList.add("in");
+          else e.target.classList.remove("in");
+        });
+      },
+      { threshold: 0.12, rootMargin: "0px 0px -8% 0px" }
+    );
+    const observed = new WeakSet();
     const observe = () => {
-      const els = document.querySelectorAll(".reveal:not(.in)");
-      const io = new IntersectionObserver(
-        (entries) => {
-          entries.forEach((e) => {
-            if (e.isIntersecting) {
-              e.target.classList.add("in");
-              io.unobserve(e.target);
-            }
-          });
-        },
-        { threshold: 0.12, rootMargin: "0px 0px -8% 0px" }
-      );
-      els.forEach((el) => io.observe(el));
-      return io;
+      document.querySelectorAll(".reveal").forEach((el) => {
+        if (observed.has(el)) return;
+        observed.add(el);
+        io.observe(el);
+      });
     };
-    const io = observe();
+    observe();
+    // Re-scan after async content (e.g., demo tab switches) mounts more .reveal nodes
     const t = setTimeout(observe, 1500);
     return () => {
       io.disconnect();
@@ -177,26 +181,49 @@ function TopNav({ time }) {
 
 function SideRail({ active }) {
   const railRef = useRef(null);
-  // Auto-hide. Show when actively scrolling (1.5s linger) OR when cursor near left edge.
+  const isOnHero = active === "hero";
+  // Auto-hide. Show when actively scrolling OR when cursor near left edge.
+  // Effect runs ONCE after the rail mounts (transition off hero) — listeners
+  // stay attached for the lifetime of the rail. Avoids the per-active-change
+  // tear-down/rebuild that was retriggering show on Lenis settling events.
   useEffect(() => {
+    if (isOnHero) return;
     const el = railRef.current;
     if (!el) return;
-    let hideTimer = null;
     let scrolling = false;
     let nearLeft = false;
     const sync = () => {
       if (scrolling || nearLeft) el.classList.add("is-visible");
       else el.classList.remove("is-visible");
     };
-    const onScroll = () => {
-      scrolling = true;
-      sync();
-      if (hideTimer) clearTimeout(hideTimer);
-      hideTimer = setTimeout(() => {
-        scrolling = false;
+
+    // Lenis velocity polling — continuous signal, no discrete-event gaps.
+    // Result: hide-trigger fires exactly once when motion ends, same shape
+    // as a single mouseleave. No wheel-gap flicker.
+    const SHOW_VEL = 0.1; // velocity above which we count as "scrolling"
+    const STILL_VEL = 0.02; // below this, count as "settled"
+    let settledStart = 0;
+    let rafId;
+    const tick = () => {
+      const vel = Math.abs(window.__lenis?.velocity || 0);
+      if (!scrolling && vel > SHOW_VEL) {
+        scrolling = true;
+        settledStart = 0;
         sync();
-      }, 50);
+      } else if (scrolling && vel < STILL_VEL) {
+        if (settledStart === 0) settledStart = performance.now();
+        else if (performance.now() - settledStart > 50) {
+          scrolling = false;
+          sync();
+          settledStart = 0;
+        }
+      } else if (vel >= STILL_VEL) {
+        settledStart = 0;
+      }
+      rafId = requestAnimationFrame(tick);
     };
+    rafId = requestAnimationFrame(tick);
+
     const onMove = (e) => {
       const want = e.clientX < 120;
       if (want !== nearLeft) {
@@ -204,16 +231,12 @@ function SideRail({ active }) {
         sync();
       }
     };
-    // Show briefly on mount so user knows it's there
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("mousemove", onMove, { passive: true });
     return () => {
-      window.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(rafId);
       window.removeEventListener("mousemove", onMove);
-      if (hideTimer) clearTimeout(hideTimer);
     };
-  }, [active]);
+  }, [isOnHero]);
 
   if (active === "hero") return null;
   const items = [
@@ -321,7 +344,7 @@ function Hero() {
     scene.add(outer);
     const ring = new THREE.LineSegments(
       new THREE.WireframeGeometry(new THREE.IcosahedronGeometry(2.1, 1)),
-      new THREE.LineBasicMaterial({ color: 0x4a7dff, transparent: true, opacity: 0.55 })
+      new THREE.LineBasicMaterial({ color: 0x6b95ff, transparent: true, opacity: 0.72 })
     );
     ring.position.x = SPHERE_X;
     scene.add(ring);
