@@ -43,6 +43,43 @@ body {
 ::selection { background: var(--accent); color: #000; }
 a { color: inherit; text-decoration: none; }
 
+/* ===== Intro veil ===== */
+.intro-veil {
+  position: fixed; inset: 0;
+  z-index: 9990;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+  will-change: transform;
+  /* Scan + grid texture so the veil itself feels engineered, not blank. */
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px),
+    radial-gradient(900px 500px at 50% 50%, rgba(163,255,18,0.08), transparent 60%);
+  background-size: 80px 80px, 80px 80px, auto;
+  background-position: -1px -1px, -1px -1px, center;
+}
+.intro-veil-inner {
+  display: flex; align-items: center; gap: 18px;
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--fg-2);
+}
+.intro-mark {
+  font-family: var(--display);
+  font-style: italic;
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: -0.02em;
+  line-height: 1;
+  text-shadow: 0 0 16px rgba(163, 255, 18, 0.5);
+}
+.intro-line { width: 64px; height: 1px; background: var(--accent); opacity: 0.6; }
+body.intro-done .intro-veil { display: none; }
+
 /* ===== Topbar ===== */
 .topbar {
   position: fixed; top: 0; left: 0; right: 0;
@@ -145,34 +182,39 @@ a { color: inherit; text-decoration: none; }
 /* Specificity bump so the green-on-green isn't kept when hovered on primary. */
 .btn.primary:hover { color: #000; }
 
-/* ===== Cursor ===== */
-@media (hover: hover) and (pointer: fine) {
-  body { cursor: none; }
-  a, button, .btn, [data-cursor] { cursor: none; }
-  .cursor-ring {
-    position: fixed; top: 0; left: 0;
-    width: 24px; height: 24px;
-    border: 1px solid var(--accent);
-    border-radius: 50%;
-    z-index: 9999;
-    pointer-events: none;
-    transform: translate(-50%, -50%);
-    transition: width .25s, height .25s, background .25s, border-color .25s;
-    mix-blend-mode: difference;
-  }
-  .cursor-dot {
-    position: fixed; top: 0; left: 0;
-    width: 4px; height: 4px;
-    background: var(--accent);
-    border-radius: 50%;
-    z-index: 10000;
-    pointer-events: none;
-    transform: translate(-50%, -50%);
-  }
-  body.hovering .cursor-ring { width: 56px; height: 56px; background: var(--accent); }
-  body.hovering .cursor-dot { opacity: 0; }
+/* ===== Cursor =====
+   Force `cursor: none` on every element with !important so no user-agent or
+   element-specific override can re-show the OS cursor. Restored only on
+   touch-only devices where the custom cursor doesn't make sense. */
+*, *::before, *::after { cursor: none !important; }
+
+.cursor-ring {
+  position: fixed; top: 0; left: 0;
+  width: 24px; height: 24px;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  z-index: 9999;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  transition: width .25s, height .25s, background .25s, border-color .25s;
+  mix-blend-mode: difference;
 }
-@media not all and (hover: hover) {
+.cursor-dot {
+  position: fixed; top: 0; left: 0;
+  width: 4px; height: 4px;
+  background: var(--accent);
+  border-radius: 50%;
+  z-index: 10000;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+body.hovering .cursor-ring { width: 56px; height: 56px; background: var(--accent); }
+body.hovering .cursor-dot { opacity: 0; }
+
+/* Touch-only devices: restore OS cursor and hide the custom one. */
+@media (hover: none) and (pointer: coarse) {
+  *, *::before, *::after { cursor: auto !important; }
+  a, button, .btn { cursor: pointer !important; }
   .cursor-dot, .cursor-ring { display: none; }
 }
 
@@ -299,7 +341,9 @@ a { color: inherit; text-decoration: none; }
    ============================================================ */
 .scenes-wrap {
   position: relative;
-  height: 400vh;
+  /* Each scene gets ~187vh of scroll budget; combined with the JS plateau
+     in app/page.js the scene stays fully visible for longer before fading. */
+  height: 560vh;
 }
 .scenes-pin {
   position: sticky;
@@ -359,7 +403,9 @@ a { color: inherit; text-decoration: none; }
 .scene {
   position: absolute;
   inset: 0;
-  padding: 120px 140px 80px;
+  /* On wide screens, expand horizontal padding to center a max ~1280px content
+     box while keeping the left scenes-progress menu visually pinned at left:32px. */
+  padding: 120px max(140px, calc((100% - 1480px) / 2)) 80px;
   display: grid;
   grid-template-columns: 1fr 1.1fr;
   gap: 60px;
@@ -412,7 +458,11 @@ a { color: inherit; text-decoration: none; }
 /* Scene 1 — node graph (no-code) */
 .nodegraph {
   position: relative;
-  width: 100%; height: 100%;
+  width: 100%;
+  /* Constrain vertical extent so the graph reads as a horizontal flow, not a tall column. */
+  aspect-ratio: 16 / 9;
+  height: auto;
+  max-height: 100%;
   font-family: var(--mono);
   font-size: 11px;
 }
@@ -429,17 +479,20 @@ a { color: inherit; text-decoration: none; }
   display: flex; align-items: center; gap: 8px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.4);
   transform: translate(-50%, -50%);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 .nodegraph .node .icon {
   width: 18px; height: 18px;
   border-radius: 4px;
-  background: var(--accent);
+  background: var(--line-2);
   display: grid; place-items: center;
-  color: #000;
+  color: var(--fg-3);
   font-weight: 700;
   font-size: 10px;
+  transition: background 0.3s ease, color 0.3s ease;
 }
-.nodegraph .node.hot { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); }
+.nodegraph .node.hot { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim), 0 0 24px rgba(163, 255, 18, 0.18); }
+.nodegraph .node.hot .icon { background: var(--accent); color: #000; }
 .nodegraph .node .lbl { text-transform: uppercase; }
 .nodegraph .node .badge { margin-left: auto; font-size: 9px; color: var(--accent); }
 
@@ -587,7 +640,16 @@ a { color: inherit; text-decoration: none; }
   overflow: hidden;
   position: relative;
 }
-.phone .transcript .line { margin-bottom: 6px; }
+.phone .transcript .line {
+  margin-bottom: 6px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.35s ease, transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.phone .transcript .line.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
 .phone .transcript .line .who { color: var(--fg-3); }
 .phone .transcript .line.ai .who { color: var(--accent); }
 

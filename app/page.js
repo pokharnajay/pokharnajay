@@ -1,5 +1,19 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+
+/* ============== Intro Veil ============== */
+
+function IntroVeil() {
+  return (
+    <div className="intro-veil" id="introVeil">
+      <div className="intro-veil-inner">
+        <span className="intro-mark">JP</span>
+        <span className="intro-line"></span>
+        <span className="intro-text">Jay Pokharna · v3.0 / booting</span>
+      </div>
+    </div>
+  );
+}
 
 /* ============== Topbar ============== */
 
@@ -185,25 +199,118 @@ function Hero() {
 /* ============== Scenes Section ============== */
 
 function SceneNoCode() {
+  const svgRef = useRef(null);
+  const graphRef = useRef(null);
   const nodes = [
-    { id: "trigger", label: "Webhook In", x: 8, y: 22, hot: false, badge: "TRG" },
-    { id: "router", label: "Router", x: 32, y: 50, hot: true, badge: "MK" },
-    { id: "airtable", label: "Airtable Find", x: 60, y: 18, hot: false, badge: "DB" },
-    { id: "filter", label: "Filter", x: 60, y: 50, hot: false, badge: "FX" },
-    { id: "slack", label: "Slack Notify", x: 60, y: 82, hot: false, badge: "SL" },
-    { id: "stripe", label: "Stripe Charge", x: 88, y: 30, hot: true, badge: "$" },
-    { id: "sms", label: "ClickSend SMS", x: 88, y: 70, hot: false, badge: "SMS" },
+    { id: "trigger",  label: "Webhook In",   x: 8,  y: 30, badge: "TRG" },
+    { id: "router",   label: "Router",       x: 32, y: 50, badge: "MK"  },
+    { id: "airtable", label: "Airtable Find", x: 60, y: 22, badge: "DB"  },
+    { id: "filter",   label: "Filter",       x: 60, y: 50, badge: "FX"  },
+    { id: "slack",    label: "Slack Notify", x: 60, y: 78, badge: "SL"  },
+    { id: "stripe",   label: "Stripe Charge", x: 88, y: 32, badge: "$"   },
+    { id: "sms",      label: "ClickSend SMS", x: 88, y: 68, badge: "SMS" },
   ];
   const edges = [
-    ["trigger", "router"],
-    ["router", "airtable"],
-    ["router", "filter"],
-    ["router", "slack"],
-    ["airtable", "stripe"],
-    ["filter", "stripe"],
-    ["filter", "sms"],
+    ["trigger", "router"],   // 0  stage 0
+    ["router", "airtable"],  // 1  stage 1
+    ["router", "filter"],    // 2  stage 1
+    ["router", "slack"],     // 3  stage 1
+    ["airtable", "stripe"],  // 4  stage 2
+    ["filter", "stripe"],    // 5  stage 2
+    ["filter", "sms"],       // 6  stage 2
   ];
   const map = Object.fromEntries(nodes.map((n) => [n.id, n]));
+
+  // BFS propagation: data starts at trigger, lights up nodes in order of arrival.
+  useEffect(() => {
+    if (!svgRef.current || !graphRef.current || typeof window === "undefined") return;
+    const pulseEls = svgRef.current.querySelectorAll(".ng-pulse");
+    if (pulseEls.length !== edges.length) return;
+    const nodeEls = graphRef.current.querySelectorAll("[data-node]");
+    const nodeMap = {};
+    nodeEls.forEach((el) => { nodeMap[el.dataset.node] = el; });
+
+    // Cubic bezier interpolator matching the path d="M A C C1 C2 B"
+    const at = (a, b, t) => {
+      const c1x = (a.x + b.x) / 2, c1y = a.y;
+      const c2x = (a.x + b.x) / 2, c2y = b.y;
+      const u = 1 - t;
+      return {
+        x: u * u * u * a.x + 3 * u * u * t * c1x + 3 * u * t * t * c2x + t * t * t * b.x,
+        y: u * u * u * a.y + 3 * u * u * t * c1y + 3 * u * t * t * c2y + t * t * t * b.y,
+      };
+    };
+
+    const stages = [[0], [1, 2, 3], [4, 5, 6]];
+    // Slower cadence per request — feels deliberate, like data actually flowing.
+    const STAGE_DUR = 1.5;
+    const STAGE_GAP = 0.45;
+    const PAUSE = 1.6;
+    const stageOf = new Array(edges.length);
+    stages.forEach((s, i) => s.forEach((e) => (stageOf[e] = i)));
+    const totalDur = stages.length * STAGE_DUR + (stages.length - 1) * STAGE_GAP + PAUSE;
+
+    // Light up the trigger (start) node only when the cycle is in flight.
+    const triggerArrival = 0;
+    // For each edge, the moment the pulse "arrives" at its destination node.
+    const arrivalsByEdge = edges.map((_, i) => {
+      const sIdx = stageOf[i];
+      return sIdx * (STAGE_DUR + STAGE_GAP) + STAGE_DUR * 0.92;
+    });
+
+    let rafId;
+    let cycleStart = performance.now();
+    let lastReset = -1;
+
+    const setHot = (id, on) => {
+      const el = nodeMap[id];
+      if (!el) return;
+      el.classList.toggle("hot", on);
+    };
+
+    const tick = (now) => {
+      const elapsed = (now - cycleStart) / 1000;
+      if (elapsed >= totalDur) {
+        cycleStart = now;
+        // Reset: extinguish all nodes at start of new cycle.
+        nodes.forEach((n) => setHot(n.id, false));
+        lastReset = now;
+      }
+      const phase = elapsed >= totalDur ? 0 : elapsed;
+
+      // Pulse positions
+      for (let i = 0; i < edges.length; i++) {
+        const sIdx = stageOf[i];
+        const stageStart = sIdx * (STAGE_DUR + STAGE_GAP);
+        const stageEnd = stageStart + STAGE_DUR;
+        const el = pulseEls[i];
+        if (phase < stageStart || phase > stageEnd) {
+          el.style.opacity = "0";
+          continue;
+        }
+        const t = (phase - stageStart) / STAGE_DUR;
+        const op = t < 0.06 ? t / 0.06 : t > 0.92 ? (1 - t) / 0.08 : 1;
+        el.style.opacity = String(Math.max(0, Math.min(1, op)));
+        const A = map[edges[i][0]], B = map[edges[i][1]];
+        const p = at(A, B, t);
+        el.setAttribute("cx", p.x.toFixed(2));
+        el.setAttribute("cy", p.y.toFixed(2));
+      }
+
+      // Node lighting based on phase
+      // Trigger lights as soon as the cycle starts (data is "in").
+      setHot("trigger", phase >= triggerArrival);
+      // Each destination node lights when its incoming pulse arrives.
+      for (let i = 0; i < edges.length; i++) {
+        const dst = edges[i][1];
+        if (phase >= arrivalsByEdge[i]) setHot(dst, true);
+      }
+
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, []);
 
   return (
     <div className="scene" data-scene="0">
@@ -223,8 +330,8 @@ function SceneNoCode() {
       </div>
 
       <div className="scene-visual">
-        <div className="nodegraph">
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <div className="nodegraph" ref={graphRef}>
+          <svg ref={svgRef} viewBox="0 0 100 100" preserveAspectRatio="none">
             <defs>
               <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
                 <path d="M0,0 L10,5 L0,10 z" fill="#a3ff12" />
@@ -246,11 +353,27 @@ function SceneNoCode() {
                 />
               );
             })}
+            {/* Pulse particles travel along each edge in BFS stages.
+                Ellipse rx/ry compensates for the SVG's preserveAspectRatio="none"
+                stretch (16:9 container × 1:1 viewBox) so the pulse renders as a
+                perfect circle on screen. ry / rx = 16 / 9. */}
+            {edges.map((_, i) => (
+              <ellipse
+                key={`pulse-${i}`}
+                className="ng-pulse"
+                rx="0.9"
+                ry="1.6"
+                fill="#a3ff12"
+                opacity="0"
+                style={{ filter: "drop-shadow(0 0 1.5px #a3ff12)" }}
+              />
+            ))}
           </svg>
           {nodes.map((n) => (
             <div
               key={n.id}
-              className={"node " + (n.hot ? "hot" : "")}
+              data-node={n.id}
+              className="node"
               style={{ left: n.x + "%", top: n.y + "%" }}
             >
               <span className="icon">{n.badge[0]}</span>
@@ -264,7 +387,248 @@ function SceneNoCode() {
   );
 }
 
+/* 10-snippet rotation for the SceneCode typewriter. Each snippet types out
+   character-by-character then waits 5s before the next one is picked at random. */
+const CODE_SNIPPETS = [
+  {
+    file: "~/automations/payment-reconcile.ts",
+    code: `// reconcile Stripe + Whop charges → Airtable
+import { table } from "@airtable/scripts";
+const charges = await fetchCharges({ since: lastRun });
+
+for (const c of charges) {
+  if (await findByExternalId(c.id)) continue;
+  await table.createRecord({
+    amount: c.amount / 100,
+    customer: await resolveCustomer(c),
+    commission: splitCommission(c),
+  });
+}`,
+  },
+  {
+    file: "~/lib/webhook-retry.ts",
+    code: `// exponential backoff for transient webhook failures
+async function deliver(url, body, attempt = 1) {
+  const res = await fetch(url, { method: "POST", body });
+  if (res.ok) return res;
+  if (attempt >= 5) throw new Error("max retries");
+
+  const wait = 2 ** attempt * 250;
+  await sleep(wait);
+  return deliver(url, body, attempt + 1);
+}`,
+  },
+  {
+    file: "~/sms/inbound-stop.ts",
+    code: `// inbound SMS: detect STOP, propagate opt-out
+const STOP = new Set(["STOP", "UNSUBSCRIBE", "QUIT"]);
+
+export async function onInbound(msg) {
+  const text = msg.body.trim().toUpperCase();
+  if (!STOP.has(text)) return;
+  const contact = await findContact(msg.from);
+  if (!contact) return;
+  await markOptOut(contact.id, { source: "sms" });
+  await replyAck(msg.from);
+}`,
+  },
+  {
+    file: "~/vapi/dynamic-context.ts",
+    code: `// inject runtime context into VAPI assistant
+const ctx = {
+  caller: caller.firstName ?? "there",
+  now: new Date().toLocaleString("en-US", { timeZone: tz }),
+  nextOpen: slots[0]?.start ?? null,
+  history: lastCalls.slice(0, 3),
+};
+
+const prompt = renderLiquid(template, ctx);
+await vapi.start(assistantId, { context: prompt });`,
+  },
+  {
+    file: "~/cal/conflict-check.ts",
+    code: `// team-wide conflict check before booking
+async function canBook(slot) {
+  const team = await listTeam();
+  const events = (await Promise.all(
+    team.map(u => listEvents(u.email, slot.start, slot.end))
+  )).flat();
+
+  return events.every(e =>
+    e.end <= slot.start || e.start >= slot.end
+  );
+}`,
+  },
+  {
+    file: "~/lead/route.ts",
+    code: `// route inbound lead to the right pod
+function pickPod(lead) {
+  if (lead.budget > 50000) return "enterprise";
+  if (lead.region === "EU") return "eu-team";
+  if (lead.source === "referral") return "warm";
+  return "smb";
+}
+
+const pod = pickPod(lead);
+await assignTo(pod, lead);
+await slackPing(\`#\${pod}\`, lead);`,
+  },
+  {
+    file: "~/esign/callback.ts",
+    code: `// eSignatures.io status webhook handler
+if (req.body.status !== "signed") return ok();
+
+const deal = await findDeal(req.body.contract_id);
+await markSigned(deal.id, req.body.signed_at);
+await triggerScenario("payment_link", deal);
+await notify(deal.owner, "contract signed");
+return ok();`,
+  },
+  {
+    file: "~/ops/digest.ts",
+    code: `// nightly ops digest → Slack #ops
+const since = startOfDay(new Date());
+const wins = await listWins({ since });
+const blockers = await listBlockers({ since });
+
+const blocks = composeDigest({ wins, blockers });
+await postSlack("#ops-digest", blocks);
+await markRunComplete("digest");`,
+  },
+  {
+    file: "~/lib/rate-limit.ts",
+    code: `// token-bucket rate limit per workspace
+const buckets = new Map();
+
+function take(workspace, cost = 1) {
+  const b = buckets.get(workspace) ?? { tokens: 100, refilledAt: now() };
+  refill(b);
+  if (b.tokens < cost) throw new TooManyRequests();
+  b.tokens -= cost;
+  buckets.set(workspace, b);
+}`,
+  },
+  {
+    file: "~/airtable/upsert.ts",
+    code: `// upsert by external key, batched 10/req
+const chunks = chunk(records, 10);
+
+for (const batch of chunks) {
+  await base(table).update(batch, {
+    typecast: true,
+    performUpsert: { fieldsToMergeOn: ["external_id"] },
+  });
+  await sleep(220); // stay under 5 req/s per base
+}`,
+  },
+];
+
+// Tokenize a code line into syntax-highlighted spans (light JS/TS lexer).
+function tokenizeCodeLine(line) {
+  if (line.trim().startsWith("//")) return [{ c: "com", t: line }];
+  const KW = /^(import|from|const|let|var|await|async|function|for|if|else|return|of|in|new|throw|continue|export|default|try|catch|class|extends|null|undefined|true|false|this|break)\b/;
+  const out = [];
+  let rest = line;
+  while (rest.length > 0) {
+    let m;
+    if ((m = rest.match(/^"(?:[^"\\]|\\.)*"/)) || (m = rest.match(/^'(?:[^'\\]|\\.)*'/)) || (m = rest.match(/^`(?:[^`\\]|\\.)*`/))) {
+      out.push({ c: "str", t: m[0] });
+      rest = rest.slice(m[0].length);
+      continue;
+    }
+    if ((m = rest.match(KW))) {
+      out.push({ c: "kw", t: m[0] });
+      rest = rest.slice(m[0].length);
+      continue;
+    }
+    if ((m = rest.match(/^[0-9]+(\.[0-9]+)?/))) {
+      out.push({ c: "num", t: m[0] });
+      rest = rest.slice(m[0].length);
+      continue;
+    }
+    if ((m = rest.match(/^([a-zA-Z_$][a-zA-Z0-9_$]*)(?=\s*\()/))) {
+      out.push({ c: "fn", t: m[0] });
+      rest = rest.slice(m[0].length);
+      continue;
+    }
+    if ((m = rest.match(/^[a-zA-Z_$][a-zA-Z0-9_$]*/))) {
+      out.push({ c: "var", t: m[0] });
+      rest = rest.slice(m[0].length);
+      continue;
+    }
+    out.push({ c: "", t: rest[0] });
+    rest = rest.slice(1);
+  }
+  return out;
+}
+
+// Pre-tokenize once at module load so every keystroke is a cheap render.
+const SNIPPETS_TOKENIZED = CODE_SNIPPETS.map((s) => {
+  const lines = s.code.split("\n").map((line) => ({
+    tokens: tokenizeCodeLine(line),
+    raw: line,
+  }));
+  // total chars including newlines
+  let total = 0;
+  for (const l of lines) total += l.raw.length + 1;
+  total -= 1; // last line has no trailing newline
+  return { file: s.file, lines, totalChars: total };
+});
+const MAX_LINES = SNIPPETS_TOKENIZED.reduce((m, s) => Math.max(m, s.lines.length), 0);
+
 function SceneCode() {
+  const [snippetIdx, setSnippetIdx] = useState(0);
+  const [typed, setTyped] = useState(0);
+
+  useEffect(() => {
+    const snippet = SNIPPETS_TOKENIZED[snippetIdx];
+    if (typed < snippet.totalChars) {
+      // mild jitter so it feels like a person typing, not a constant tick
+      const speed = 18 + Math.floor(Math.random() * 18);
+      const id = setTimeout(() => setTyped(typed + 1), speed);
+      return () => clearTimeout(id);
+    }
+    // Snippet done — wait 5s, then pick a different snippet at random.
+    const id = setTimeout(() => {
+      let next;
+      do {
+        next = Math.floor(Math.random() * SNIPPETS_TOKENIZED.length);
+      } while (next === snippetIdx && SNIPPETS_TOKENIZED.length > 1);
+      setSnippetIdx(next);
+      setTyped(0);
+    }, 5000);
+    return () => clearTimeout(id);
+  }, [snippetIdx, typed]);
+
+  const snippet = SNIPPETS_TOKENIZED[snippetIdx];
+  let charsLeft = typed;
+  const lineNodes = [];
+  for (let li = 0; li < snippet.lines.length; li++) {
+    const line = snippet.lines[li];
+    const lineCharLen = line.raw.length;
+    if (charsLeft <= 0) {
+      lineNodes.push(<span key={li} className="line"><span>&nbsp;</span></span>);
+      continue;
+    }
+    const cut = Math.min(charsLeft, lineCharLen);
+    let used = 0;
+    const spans = [];
+    for (const tok of line.tokens) {
+      if (used >= cut) break;
+      const take = Math.min(tok.t.length, cut - used);
+      spans.push(<span key={spans.length} className={tok.c}>{tok.t.slice(0, take)}</span>);
+      used += tok.t.length;
+    }
+    const isCurrentLine = cut < lineCharLen || (charsLeft <= lineCharLen + 1 && li === snippet.lines.length - 1);
+    lineNodes.push(
+      <span key={li} className="line">
+        {spans.length > 0 ? spans : <span>&nbsp;</span>}
+        {isCurrentLine && typed < snippet.totalChars ? <span className="caret"></span> : null}
+      </span>
+    );
+    charsLeft -= lineCharLen + 1; // +1 for the newline between lines
+  }
+
   return (
     <div className="scene" data-scene="1">
       <div className="scene-text">
@@ -286,27 +650,20 @@ function SceneCode() {
         <div className="codeblock">
           <div className="head">
             <div className="dots"><span></span><span></span><span></span></div>
-            <div className="file">~/automations/payment-reconcile.ts</div>
+            <div className="file">{snippet.file}</div>
           </div>
           <div className="body">
             <div className="gutter">
-              {Array.from({ length: 14 }, (_, i) => <span key={i}>{i + 1}</span>)}
+              {Array.from({ length: MAX_LINES }, (_, i) => (
+                <span key={i}>{i < snippet.lines.length ? i + 1 : ""}</span>
+              ))}
             </div>
             <div className="code">
-              <span className="line"><span className="com">// reconcile Stripe + Whop charges → Airtable</span></span>
-              <span className="line"><span className="kw">import</span> {"{ table }"} <span className="kw">from</span> <span className="str">&quot;@airtable/scripts&quot;</span>;</span>
-              <span className="line"><span className="kw">const</span> <span className="var">charges</span> = <span className="kw">await</span> <span className="fn">fetchCharges</span>({"{ since: lastRun }"});</span>
-              <span className="line"></span>
-              <span className="line"><span className="kw">for</span> (<span className="kw">const</span> <span className="var">c</span> <span className="kw">of</span> <span className="var">charges</span>) {"{"}</span>
-              <span className="line">  <span className="kw">const</span> <span className="var">existing</span> = <span className="kw">await</span> <span className="fn">findByExternalId</span>(<span className="var">c</span>.id);</span>
-              <span className="line">  <span className="kw">if</span> (<span className="var">existing</span>) <span className="kw">continue</span>;</span>
-              <span className="line"></span>
-              <span className="line">  <span className="kw">await</span> <span className="var">table</span>.<span className="fn">createRecord</span>({"{"}</span>
-              <span className="line">    <span className="var">amount</span>: <span className="var">c</span>.amount / <span className="num">100</span>,</span>
-              <span className="line">    <span className="var">customer</span>: <span className="kw">await</span> <span className="fn">resolveCustomer</span>(<span className="var">c</span>),</span>
-              <span className="line">    <span className="var">commission</span>: <span className="fn">splitCommission</span>(<span className="var">c</span>),</span>
-              <span className="line">  {"}"});</span>
-              <span className="line">{"}"} <span className="caret"></span></span>
+              {lineNodes}
+              {/* fill remaining lines with empty so codeblock height stays stable */}
+              {Array.from({ length: Math.max(0, MAX_LINES - snippet.lines.length) }, (_, i) => (
+                <span key={`pad-${i}`} className="line"><span>&nbsp;</span></span>
+              ))}
             </div>
           </div>
         </div>
@@ -324,6 +681,24 @@ function SceneCode() {
 
 function SceneVoice() {
   const bars = Array.from({ length: 36 });
+  // Sequential transcript reveal: AI → User → AI, hold, restart, loop.
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    if (shown < 3) {
+      const id = setTimeout(() => setShown(shown + 1), 1600);
+      return () => clearTimeout(id);
+    }
+    // All 3 lines visible — hold for 4s, then restart the conversation.
+    const id = setTimeout(() => setShown(0), 4000);
+    return () => clearTimeout(id);
+  }, [shown]);
+
+  const messages = [
+    { ai: true,  who: "AI ▸",   text: "Hi! I’m calling to confirm your service window for Tuesday." },
+    { ai: false, who: "User ▸", text: "Tuesday afternoon works." },
+    { ai: true,  who: "AI ▸",   text: "Got it — booking 2 to 4 PM. You’ll get a text shortly." },
+  ];
+
   return (
     <div className="scene" data-scene="2">
       <div className="scene-text">
@@ -362,9 +737,14 @@ function SceneVoice() {
             ))}
           </div>
           <div className="transcript">
-            <div className="line ai"><span className="who">AI ▸</span> Hi! I&rsquo;m calling to confirm your service window for Tuesday.</div>
-            <div className="line"><span className="who">User ▸</span> Tuesday afternoon works.</div>
-            <div className="line ai"><span className="who">AI ▸</span> Got it — booking 2 to 4 PM. You&rsquo;ll get a text shortly.</div>
+            {messages.map((m, i) => (
+              <div
+                key={i}
+                className={"line" + (m.ai ? " ai" : "") + (i < shown ? " is-visible" : "")}
+              >
+                <span className="who">{m.who}</span> {m.text}
+              </div>
+            ))}
           </div>
         </div>
 
@@ -620,23 +1000,48 @@ export default function Page() {
     const gsap = window.gsap;
     if (window.ScrollTrigger) gsap.registerPlugin(window.ScrollTrigger);
 
+    // Intro veil: hold for ~0.5s showing the JP mark, then slide up to reveal.
+    // After the slide completes, mark body so the veil is removed from the
+    // paint tree (display:none) and stops eating events.
+    const veil = document.getElementById("introVeil");
+    if (veil) {
+      gsap.fromTo(
+        veil,
+        { yPercent: 0 },
+        {
+          yPercent: -101,
+          duration: 1.1,
+          ease: "power4.inOut",
+          delay: 0.55,
+          onComplete: () => document.body.classList.add("intro-done"),
+        }
+      );
+      gsap.fromTo(
+        ".intro-veil-inner",
+        { opacity: 0, y: 8 },
+        { opacity: 1, y: 0, duration: 0.5, ease: "power2.out", delay: 0.05 }
+      );
+      gsap.to(".intro-veil-inner", { opacity: 0, duration: 0.35, ease: "power2.in", delay: 1.4 });
+    }
+
     // Hero entrance — fromTo with clearProps so post-animation state is natural CSS.
+    // Delays here line up with the veil sliding up so the hero is "behind" it.
     const heroAnims = document.querySelectorAll("[data-hero-anim]");
     if (heroAnims.length) {
       gsap.fromTo(
         heroAnims,
         { yPercent: 110, opacity: 0 },
-        { yPercent: 0, opacity: 1, duration: 1.1, ease: "expo.out", stagger: 0.08, delay: 0.2, clearProps: "all" }
+        { yPercent: 0, opacity: 1, duration: 1.1, ease: "expo.out", stagger: 0.08, delay: 1.4, clearProps: "all" }
       );
       gsap.fromTo(
         ".hero-bottom > *",
         { opacity: 0, y: 24 },
-        { opacity: 1, y: 0, duration: 0.8, stagger: 0.08, delay: 0.9, ease: "power2.out", clearProps: "all" }
+        { opacity: 1, y: 0, duration: 0.8, stagger: 0.08, delay: 2.1, ease: "power2.out", clearProps: "all" }
       );
       gsap.fromTo(
         ".hero-tag",
         { opacity: 0, y: -10 },
-        { opacity: 1, y: 0, duration: 0.6, delay: 0.5, ease: "power2.out", clearProps: "all" }
+        { opacity: 1, y: 0, duration: 0.6, delay: 1.7, ease: "power2.out", clearProps: "all" }
       );
     }
 
@@ -659,12 +1064,20 @@ export default function Page() {
           onUpdate: (self) => {
             const p = self.progress;
             const N = 3;
+            // PLATEAU = scene stays at full opacity (op=1, no slide, no scale-down)
+            // for this much "dist" from its center. With the dist multiplier (N-1)=2,
+            // a plateau of 0.4 means the scene is locked-on across ±0.20 of overall
+            // scroll progress. On a 560vh wrap that's ~112vh of full visibility per
+            // scene — well above the 50vh requested.
+            const PLATEAU = 0.4;
+            const FADE = 0.45;
             for (let i = 0; i < N; i++) {
               const center = i / (N - 1);
               const dist = Math.abs(p - center) * (N - 1);
-              const op = Math.max(0, 1 - dist * 1.4);
-              const scale = 0.92 + (1 - Math.min(1, dist)) * 0.08;
-              const y = (p < center ? 40 : -40) * Math.min(1, dist);
+              const fadeProg = Math.max(0, Math.min(1, (dist - PLATEAU) / FADE));
+              const op = 1 - fadeProg;
+              const scale = 1 - fadeProg * 0.08;
+              const y = (p < center ? 40 : -40) * fadeProg;
               gsap.set(scenes[i], { opacity: op, scale, y });
             }
             const idx = Math.round(p * (N - 1));
@@ -723,6 +1136,7 @@ export default function Page() {
       <div className="cursor-ring" id="cursorRing"></div>
       <div className="cursor-dot" id="cursorDot"></div>
 
+      <IntroVeil />
       <Topbar />
       <main>
         <Hero />
