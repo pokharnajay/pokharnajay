@@ -130,3 +130,7 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# typescript (added for /exc app)
+next-env.d.ts
+*.tsbuildinfo
