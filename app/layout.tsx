@@ -6,7 +6,7 @@ import { SITE_URL, IS_INDEXABLE, site } from "@/lib/site";
    size-adjusted fallbacks keep layout shift near zero while fonts swap in. */
 const display = Space_Grotesk({ subsets: ["latin"], display: "swap", variable: "--font-display" });
 const sans = Inter_Tight({ subsets: ["latin"], display: "swap", variable: "--font-sans" });
-const mono = JetBrains_Mono({ subsets: ["latin"], display: "swap", variable: "--font-mono", preload: false });
+const mono = JetBrains_Mono({ subsets: ["latin"], display: "swap", variable: "--font-mono" });
 
 /* Search-console verification tags render only when the env var is set. */
 const verification: Metadata["verification"] = {};

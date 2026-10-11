@@ -124,7 +124,6 @@ export default function SceneAgents() {
   const words = Math.round(clamp01((t - T.answer[0]) / (T.answer[1] - T.answer[0])) * ANSWER_WORDS.length);
   const running = t >= T.agentOn && t < T.done;
   const done = t >= T.done;
-  const fading = t > T.cycle - 600;
   const elapsed = Math.max(0, Math.min(t, T.done) - T.agentOn) / 1000;
 
   const edge = (from) => (t < from ? "" : " on");
@@ -153,7 +152,7 @@ export default function SceneAgents() {
 
       <div className="scene-visual">
         <div
-          className={"agent-run" + (fading ? " is-fading" : "")}
+          className="agent-run"
           ref={rootRef}
           role="img"
           aria-label="Animated example of an AI agent run: a question about stale leads is planned, three policy documents are retrieved with similarity scores, the agent calls crm.search and email.draft, then streams a grounded answer."

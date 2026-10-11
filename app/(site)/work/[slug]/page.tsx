@@ -43,7 +43,7 @@ export function generateMetadata({ params }: { params: { slug: string } }): Meta
       tags: c.stack,
     },
     twitter: { title: `${title} | ${site.name}`, description: c.summary },
-    robots: c.draft ? { index: false, follow: false } : undefined,
+    ...(c.draft ? { robots: { index: false, follow: false } } : {}),
   };
 }
 

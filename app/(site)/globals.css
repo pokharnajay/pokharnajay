@@ -148,7 +148,9 @@ img, svg { max-width: 100%; }
   :root { --gutter: 16px; }
   .topbar { padding: 14px var(--gutter); font-size: 11px; }
   .topbar nav { gap: 16px; }
-  .topbar .brand-name, .topbar .status { display: none; }
+  .topbar .status { display: none; }
+  /* Visually hidden but still the link's accessible name. */
+  .topbar .brand-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 }
 @media (max-width: 380px) {
   .topbar nav .nav-how { display: none; }

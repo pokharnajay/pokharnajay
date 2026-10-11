@@ -16,7 +16,7 @@ export function generateMetadata(): Metadata {
     alternates: { canonical: "/writing", types: { "application/rss+xml": "/writing/rss.xml" } },
     openGraph: { url: "/writing", title: "Writing | Jay Pokharna", description: DESCRIPTION },
     // An empty index is thin content: keep it out of search until posts exist.
-    robots: hasPosts ? undefined : { index: false, follow: true },
+    ...(hasPosts ? {} : { robots: { index: false, follow: true } }),
   };
 }
 

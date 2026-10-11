@@ -24,7 +24,7 @@ export function generateMetadata({ params }: { params: { slug: string } }): Meta
     description: p.summary,
     alternates: { canonical: `/writing/${p.slug}` },
     openGraph: { type: "article", url: `/writing/${p.slug}`, title: p.title, description: p.summary, publishedTime: p.date, modifiedTime: p.updated ?? p.date },
-    robots: p.draft ? { index: false, follow: false } : undefined,
+    ...(p.draft ? { robots: { index: false, follow: false } } : {}),
   };
 }
 

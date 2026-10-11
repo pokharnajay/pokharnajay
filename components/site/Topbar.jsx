@@ -70,7 +70,7 @@ export default function Topbar() {
 
   return (
     <header className="topbar">
-      <a href="/#top" className="brand" aria-label={`${site.name}, home`}>
+      <a href="/#top" className="brand">
         <span className="brand-mark" aria-hidden="true">JP</span>
         <span className="brand-name">{site.name}</span>
       </a>
