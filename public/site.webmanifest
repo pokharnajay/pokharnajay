@@ -1,14 +1,17 @@
 {
-  "name": "Jay Pokharna — AI & Automation Engineer",
+  "name": "Jay Pokharna — AI Engineer",
   "short_name": "Jay Pokharna",
-  "description": "AI & Automation Engineer at Etherwise. Operational backbones for businesses that have outgrown manual work.",
+  "description": "AI Engineer building LLM agents, RAG systems and production automations.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#07080a",
-  "theme_color": "#a3ff12",
-  "orientation": "portrait-primary",
-  "categories": ["business", "productivity", "developer"],
+  "theme_color": "#07080a",
+  "categories": [
+    "business",
+    "productivity",
+    "developer"
+  ],
   "icons": [
     {
       "src": "/favicon.svg",
@@ -30,13 +33,13 @@
       "src": "/android-chrome-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any"
     },
     {
       "src": "/android-chrome-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any"
     },
     {
       "src": "/apple-touch-icon.png",

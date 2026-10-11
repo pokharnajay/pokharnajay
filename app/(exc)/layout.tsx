@@ -1,15 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
-// Isolated root layout for the /exc Excalidraw app. It deliberately does NOT
-// include the marketing site's global scripts (Three.js / GSAP / Lenis) or its
-// globals.css, so the drawing canvas gets a clean, conflict-free document.
-export const metadata: Metadata = {
-  title: "Excalidraw — Jay Pokharna",
-  description: "A self-hosted Excalidraw editor with cloud-saved diagrams.",
-  icons: { icon: [{ url: "/favicon.svg?v=6", type: "image/svg+xml" }] },
-};
-
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
@@ -17,10 +8,15 @@ export const viewport: Viewport = {
   colorScheme: "dark",
 };
 
-export default function ExcRootLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en">
-      <body>{children}</body>
-    </html>
-  );
+// Layout for the /exc Excalidraw app. The marketing site's chrome, scripts
+// and globals.css live in the (site) group, so the drawing canvas gets a
+// clean, conflict-free document. Private tool: kept out of search results.
+export const metadata: Metadata = {
+  title: "Excalidraw",
+  description: "A self-hosted Excalidraw editor with cloud-saved diagrams.",
+  robots: { index: false, follow: false },
+};
+
+export default function ExcLayout({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
 }
