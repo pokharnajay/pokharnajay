@@ -1,0 +1,140 @@
+---
+title: "Self-hosting n8n: Postgres, a Cloudflare tunnel, and what I'd do differently"
+slug: self-hosting-n8n-lessons
+date: "2026-10-11"
+summary: "My self-hosted n8n stack: Postgres 16 and a Cloudflare tunnel in one container, no open ports, a persisted encryption key — and the backup mistakes I'd fix."
+tags: ["n8n", "self-hosting", "Docker", "Postgres"]
+draft: true
+---
+
+{/* REVIEW BEFORE PUBLISHING: written from the files in the private n8n repo. Confirm you're happy to publish the "What I'd do differently" list, and rotate the tunnel token, encryption key and DB password that were committed there. */}
+
+## TL;DR
+
+- I built a self-hosted n8n stack that runs like production software: n8n, Postgres 16 and a Cloudflare tunnel in one container, with no app ports open to the internet.
+- The encryption key that protects every saved credential is generated once, persisted to the data volume and treated as the one thing you can't lose.
+- Backups are hot, carry their own metadata, and restore into a scratch directory first so you can check them before trusting them.
+
+## Context
+
+Make.com is my default for client work, but some jobs belong on self-hosted n8n: data that shouldn't leave a server the client controls, or high-volume, loop-heavy flows where per-operation billing adds up. Getting n8n to run is one command. Most of what an n8n developer actually gets asked about self-hosting is the rest: where the data lives, what happens to credentials on a rebuild, how webhooks reach a box with no open ports, and whether last night's backup restores.
+
+This stack went through three versions. The first was an Ubuntu box on my home network, started over wake-on-LAN and reached by SSH; I retired it on 13 April 2026. The second, built in February, is an all-in-one container image with a deploy guide for AWS. The third, from May, runs the same instance on a Mac and a Windows machine, with scripts for backup, restore and moving the whole setup between devices.
+
+## The problem
+
+A default n8n install is fine for a demo and fragile for anything you depend on:
+
+- It stores everything in SQLite, which is single-writer.
+- It generates its own encryption key inside the user folder. Lose that folder in a rebuild and every saved credential becomes unrecoverable.
+- Webhooks need a public HTTPS URL, which usually means opening a port, running a reverse proxy and managing certificates.
+- Behind any proxy, OAuth breaks in a confusing way: n8n writes `http://localhost:5678` into the redirect URI it sends to Google or Slack, the provider sends the browser there, and the callback fails with "Unauthorized".
+- Execution data grows until someone notices the disk.
+
+A server that has to be woken over the LAN before it can receive a webhook isn't production either.
+
+## Constraints
+
+- No inbound ports. At home there was nothing to forward; on AWS the security group allows SSH and nothing else.
+- One small box: the guide targets a t3.small (2 vCPU, 2 GB) with a 30 GB gp3 volume.
+- Credentials have to survive image rebuilds and upgrades.
+- One operator: me. Anything that needs remembering has to be in a script or a guide.
+- It had to work on macOS and Windows, including a Windows machine where the usual package manager was blocked by policy.
+
+## Approach & architecture: self-hosted n8n in one image
+
+I put n8n, Postgres 16 and cloudflared in a single Debian image under supervisord, rather than a three-service Compose file. One artifact goes to a container registry and runs with one `docker run` and two named volumes. The trade-off is real: Postgres can't be upgraded or scaled separately from n8n. For a single-tenant box that one person runs, I took the simpler thing to operate.
+
+Postgres listens on 127.0.0.1 only. n8n talks to it over localhost, and nothing outside the container can reach it. The tunnel is the only path in: cloudflared dials out to Cloudflare, Cloudflare terminates TLS at its edge, and requests come back down that outbound connection to `localhost:5678`. There is no port to scan.
+
+```ini title="supervisord.conf"
+[program:postgres]
+command=/usr/lib/postgresql/16/bin/postgres -D /data/postgres -c listen_addresses=127.0.0.1
+priority=10
+autorestart=true
+
+[program:n8n]
+command=/usr/bin/n8n start
+priority=20
+startretries=5
+
+[program:cloudflared]
+command=/usr/bin/cloudflared tunnel --no-autoupdate run --token %(ENV_TUNNEL_TOKEN)s
+priority=30
+```
+
+### Self-hosted n8n or Make.com?
+
+I pick self-hosted n8n when the data has to stay on a server the client controls, when a flow loops over enough records that Make's per-operation billing becomes the main cost, or when the work needs code nodes. I pick Make when nobody on the client side will own a server, when their team needs to read and edit the flow, or when the volume is small. Self-hosting moves the bill from operations to attention: uptime, backups, upgrades and retention become your job. Make deletes run history after 7 to 30 days; on this stack I prune executions after 72 hours myself, which is the same trade, chosen on purpose.
+
+## The build
+
+The container's entrypoint decides everything that differs between a first boot and a restart.
+
+<Steps>
+  <Step title="Pick the database">If no external database host is set, use the internal Postgres. Otherwise skip it and connect out over SSL to a managed one.</Step>
+  <Step title="Initialise once">On first boot only, run initdb, lock client auth to localhost and create the n8n user and database. Later boots skip this.</Step>
+  <Step title="Load or create the key">Read the encryption key from the data volume, or generate it and save it there with owner-only permissions.</Step>
+  <Step title="Tunnel if configured">Enable cloudflared only when a tunnel token is present. Without one, n8n stays on localhost.</Step>
+  <Step title="Hand off">Start supervisord, which brings up Postgres, then n8n, then the tunnel, and restarts any that die.</Step>
+</Steps>
+
+```bash title="entrypoint.sh"
+if [ -z "$N8N_ENCRYPTION_KEY" ]; then
+  if [ -f "$DATA_DIR/.encryption_key" ]; then
+    export N8N_ENCRYPTION_KEY="$(cat "$DATA_DIR/.encryption_key")"
+  else
+    export N8N_ENCRYPTION_KEY="$(openssl rand -hex 32)"
+    echo "$N8N_ENCRYPTION_KEY" > "$DATA_DIR/.encryption_key"
+    chmod 600 "$DATA_DIR/.encryption_key"
+    echo "Back this key up. Without it, saved credentials are unrecoverable."
+  fi
+fi
+```
+
+The runtime settings are the boring ones that matter. Executions are pruned at 72 hours or 2,000 runs, whichever comes first. Each execution times out at 300 seconds, and production concurrency is capped at 10, so one runaway flow can't starve the box. Code nodes can't read the server's environment variables, cookies require HTTPS, and telemetry is off. For OAuth behind the tunnel, four values have to agree with the public URL: the host, the protocol, the editor base URL and the webhook URL. Add one proxy hop so n8n trusts the forwarded headers, and register the callback URL with each provider.
+
+The AWS guide covers the rest: push the image to a private registry, run it on EC2 with a read-only registry role, take a nightly `pg_dump` from cron, and restore by piping the dump back into `psql`. It also lists what to back up and why. Of those, the encryption key gets top billing.
+
+### Backups you can check
+
+The laptop version keeps SQLite in a synced folder, with a hard rule of one device at a time, because two writers will corrupt it. Shell functions start n8n, wait until it answers on its port, and only then start the tunnel. The backup takes a hot copy without stopping n8n and writes down what it captured:
+
+```bash title="backup.sh"
+sqlite3 "$DB" ".backup '$TMP/database.sqlite'"   # WAL-safe; n8n keeps running
+cat > "$TMP/backup-info.txt" <<EOF
+n8n version: $(n8n --version)
+Workflow count: $(sqlite3 "$TMP/database.sqlite" "SELECT COUNT(*) FROM workflow_entity")
+Credential count: $(sqlite3 "$TMP/database.sqlite" "SELECT COUNT(*) FROM credentials_entity")
+EOF
+tar -czf - -C "$TMP" . | gpg --symmetric --cipher-algo AES256 --batch \
+  --passphrase "$GPG_PASSPHRASE" -o "$OUT.tar.gz.gpg"
+```
+
+Restore is where I spent the care. With a target flag, it extracts into a scratch directory and prints the workflow and credential counts, so a backup can be checked without touching the live database. A live restore refuses to run while n8n is up, keeps a copy of the current database before overwriting it, and deletes stale WAL files so SQLite doesn't replay a journal that no longer matches.
+
+## Results
+
+What the setup guarantees by construction:
+
+- No app port is open to the internet. The tunnel dials out, Postgres binds to localhost, and the EC2 security group allows SSH only.
+- Credentials survive rebuilds, because the key lives on the volume rather than in the image's writable layer.
+- A 128 MB database compresses to about 29.5 MB per archive, and each archive says what's inside it. The latest one records n8n 2.15.1, 2,063 workflows and 6 credentials. Most of those workflows are a template library I keep for reference, not production flows.
+- The setup runs on a Mac and on a Windows machine, from one guide that also covers the Windows quirks.
+
+## What I'd do differently
+
+Writing this up meant reading my own scripts as a reviewer would. Not all of it holds up:
+
+- **Secrets don't belong in the image.** The first Dockerfile baked the tunnel token, encryption key and database password into `ENV` lines, so anyone who can pull the image can read them with `docker inspect`. They belong in an env file or a secrets mount.
+- **Encryption that fails open isn't encryption.** The backup encrypts only when it has a terminal or a passphrase. A scheduled run has neither, so it falls back to plaintext, and the archives include the env file that holds the key. It should refuse to run instead.
+- **A schedule nobody checks is a wish.** I wrote a nightly launchd job and never loaded it. There are five archives across seven weeks, all taken by hand. Next time the job ships with a check that alerts when the newest archive is more than a day old.
+- **Make the comment match the code.** The script's header promises 14 daily, 8 weekly and 6 monthly backups. The code keeps the newest 30 and deletes anything over 180 days.
+- **Pin versions.** The image installs whatever n8n and cloudflared are current at build time, and my two machines ended up on n8n 2.15.1 and 2.18.5. n8n migrates its schema on boot, so a snapshot opened by the newer version may not open on the older one. I'd pin both and back up before every upgrade.
+- **Verify the database's certificate.** The external Postgres connection has certificate checks turned off.
+
+<Callout type="lesson" title="Backups fail quietly">Mine fell back to plaintext, and the nightly job never ran, and nothing told me. Check the age of the newest archive on a schedule, and restore one into a scratch directory now and then. A backup you haven't restored is a guess.</Callout>
+
+## Stack
+
+n8n on Node 20 in a Debian image, with PostgreSQL 16 and cloudflared under supervisord and Docker named volumes for data. The cloud path is AWS ECR and EC2; the laptop path is SQLite in a synced folder with Bash and PowerShell start/stop functions. Backups use the SQLite backup API and `pg_dump`, compressed with tar and encrypted with GPG (AES-256).
