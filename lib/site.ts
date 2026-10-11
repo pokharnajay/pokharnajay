@@ -1,14 +1,10 @@
 /* Single source of truth for site-wide facts. Edit here, not in components.
 
-   SITE_URL resolution order:
-   1. NEXT_PUBLIC_SITE_URL (set this in Vercel when a custom domain goes live)
-   2. VERCEL_PROJECT_PRODUCTION_URL (Vercel system env: the production domain)
-   3. https://jaypokharna.vercel.app */
-const rawSiteUrl =
-  process.env.NEXT_PUBLIC_SITE_URL ||
-  (process.env.VERCEL_PROJECT_PRODUCTION_URL
-    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : "https://jaypokharna.vercel.app");
+   SITE_URL: NEXT_PUBLIC_SITE_URL when set (do this in Vercel once a custom
+   domain like pokharnajay.com resolves), otherwise the live vercel.app URL.
+   Deliberately not derived from Vercel's domain list, which could pick a
+   custom domain whose DNS isn't live yet. */
+const rawSiteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://jaypokharna.vercel.app";
 
 export const SITE_URL = rawSiteUrl.replace(/\/+$/, "");
 
