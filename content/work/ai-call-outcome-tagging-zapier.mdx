@@ -1,0 +1,167 @@
+---
+title: "AI call analysis: Zapier, AssemblyAI and GPT outcome tags in Airtable"
+seoTitle: "AI call analysis: a Zapier OpenAI automation"
+slug: ai-call-outcome-tagging-zapier
+number: 6
+date: "2026-08-26"
+category: no-code
+clientType: "US outbound calling agency (personal-injury law)"
+role: "Automation engineer, Etherwise team"
+duration: "10 weeks (Jun–Aug 2026)"
+stack: ["Zapier", "AssemblyAI", "OpenAI (gpt-5-mini)", "Airtable", "Airtable scripting (JS)", "Google Sheets", "GoHighLevel", "Kixie", "Python (Code by Zapier)", "Cloudflare Workers"]
+metrics:
+  - { label: "Outcome tags, fixed label set", value: "12" }
+  - { label: "Calls processed, 1 Jul – 11 Aug", value: "9,602" }
+  - { label: "Of calls received, 12 firms", value: "99.7%" }
+summary: "AI call analysis on Zapier: each dialer call is transcribed, given 1 of 12 outcome tags by GPT, graded for QA and filed in the right law firm's Airtable base."
+featured: false
+draft: false
+keywords: ["AI call analysis", "Zapier OpenAI automation", "call transcription automation", "AI call disposition", "AssemblyAI Zapier", "LLM classification", "Airtable automation"]
+diagram:
+  title: "Call outcome tagging pipeline"
+  nodes:
+    - { id: dial, label: "Dialer: call ends", badge: "IN", col: 0, row: 1 }
+    - { id: zap, label: "Zapier: match firm + lead", badge: "ZAP", col: 1, row: 0 }
+    - { id: log, label: "Not-found log + error queue", badge: "LOG", col: 1, row: 2 }
+    - { id: stt, label: "AssemblyAI transcript", badge: "STT", col: 2, row: 1 }
+    - { id: llm, label: "gpt-5-mini: 1 of 12 tags", badge: "AI", col: 3, row: 0, accent: true }
+    - { id: qa, label: "gpt-5-mini: agent QA grade", badge: "AI", col: 3, row: 2 }
+    - { id: base, label: "Firm's Airtable base", badge: "DB", col: 4, row: 1 }
+  edges:
+    - { from: dial, to: zap, label: "end-of-call webhook" }
+    - { from: zap, to: log, label: "no firm or no lead" }
+    - { from: zap, to: stt, label: "recording URL" }
+    - { from: stt, to: llm, label: "transcript" }
+    - { from: stt, to: qa, label: "transcript" }
+    - { from: llm, to: base, label: "tag, summary, score" }
+    - { from: qa, to: base, label: "green / red / yellow" }
+---
+
+{/* VERIFY: authorship. The files show you committed the system documentation, onboarding guide and both prompts (16 Jun 2026), built the sheet-to-base sync and the Cloudflare Worker (deployed on your workers.dev account), and prepared the delivery reports and the signing audit (14–26 Aug). They do not say who built the original single Zap, the four-Zap split with the error queue and replay script, or wrote the two prompts, so the page says "we" for those. Switch to "I" wherever it was you, and confirm the role line. */}
+{/* VERIFY: date and duration. 16 Jun (first commit of the docs) to 26 Aug (last audit file) is about 10 weeks. The pipeline was already live before 16 Jun (the signed-contacts report starts 1 Jun), so this is your evidenced involvement, not the original build time. */}
+
+## TL;DR
+
+- Every call a US calling agency's dialer places goes through a Zapier OpenAI automation for AI call analysis: AssemblyAI transcribes it, gpt-5-mini picks one of 12 fixed outcome tags and writes a summary, a second prompt grades the agent, and the result lands on the lead's row in the right law firm's Airtable base.
+- From 1 July to 11 August it processed 9,602 of 9,634 calls received for 12 active firms (99.7%). All 32 misses failed at lookup, not at transcription or the model.
+- An audit of the client's signed leads found the model's real weak spot: 4 retainers signed on a live call, plus 3 probable, all tagged as callbacks.
+
+## Context
+
+The client runs outbound calling campaigns for personal-injury law firms. Firms hand over leads, people who recently requested a police report after a car accident, and intake agents call them to qualify the case and get a retainer signed. Each firm has its own Airtable base, lead sheet and, for some, a CRM.
+
+The agency needed call transcription automation that goes further, so nobody has to listen to calls: transcribe each one, decide what happened, grade the agent and file the result where the firm and the agency can both see it.
+
+We built and run this at Etherwise. I wrote the system documentation and onboarding playbook, built the lead sync (and the Cloudflare Worker it needs), and produced the delivery reports and signing audit below.
+
+## The problem
+
+Volume, most of it empty. From 1 July to 11 August, 71.7% of processed calls were voicemails and 12.4% wrong numbers. The calls that matter (62 tagged Signed) sit inside thousands of recordings nobody has time to play.
+
+The dialer has dispositions, but agents set them by hand, and the end-of-call webhook fires before they do. Calls arrive marked "not disposed", so the outcome has to come from the transcript.
+
+Then routing. One dialer serves every firm; a firm can have several dialer lists and, across states, several bases. Every call has to land on the right lead's row, and an unmatched call must not disappear.
+
+{/* VERIFY: what this cost before the automation (who listened to calls or reconciled outcomes, and for how long), if the client can say. */}
+
+## Constraints
+
+- **No-code by design.** Zapier orchestrates, Airtable is the system of record. Onboarding a firm had to be data entry, not a new Zap.
+- **Hand-typed routing.** List, base and table IDs are copied in by people. A missed list ID raises no error; those calls quietly land in a not-found log.
+- **Noisy transcripts.** Phone audio, some in Spanish, reaches the model as plain text without speaker names.
+- **Compliance.** "Do not call" must be caught every time; summaries carry nothing personal beyond a first name.
+
+## Approach & architecture: a Zapier OpenAI automation driven by config
+
+The pipeline knows nothing about any particular firm. A Config table in Airtable holds one row per firm: its dialer list IDs, the base and table holding its leads, and its reporting sheet. The Zap looks up the call's list ID there, then searches that firm's Contacts table by phone. Adding a firm means duplicating a template base, loading leads and adding a row. Anything unmatched goes to a not-found log with the call data intact, to be fixed and replayed rather than lost.
+
+The first version was one 52-node Zap with nested branches. We split it into four chained Zaps that hand each run on by webhook:
+
+<Steps>
+  <Step title="Ingest and resolve">Drop calls without a recording or list ID, find the firm in Config and the lead in its base.</Step>
+  <Step title="Transcribe">Send the recording to AssemblyAI, wait, fetch the transcript.</Step>
+  <Step title="Classify and grade">gpt-5-mini tags the outcome and writes the summary; a second prompt grades the agent.</Step>
+  <Step title="Write">Update the lead's row, the firm's reporting sheet and its CRM contact.</Step>
+</Steps>
+
+The split made failures recoverable. A failed run goes to an Airtable queue with the Zap that failed and everything computed so far. A replay script posts it back to that Zap, so a run that died in the final write doesn't pay for transcription and two model calls again. It bumps a retry counter before sending, so a dead webhook can't loop, and stops at five attempts. And because the firm is resolved first, a call from an unregistered list costs a log row, not a transcription.
+
+## The build
+
+The lead's row is a running history. Each call prepends a dated entry to the transcript, recording and disposition fields and increments the call count. The classifier also gets the lead's previous AI summary and carries the relevant part forward, because a second call often only makes sense in light of the first.
+
+A recurring cause of lookup misses is a lead that sits in a firm's sheet but never reached its base. I built the scheduled catch-up: it walks active Config rows one firm per run, to stay inside Airtable's script time limit, and creates every lead whose phone (compared on the last 10 digits) isn't in the base yet. Restricted sheets go through a small Cloudflare Worker that holds the Google refresh token, since Airtable's sandbox can't do that OAuth exchange cleanly.
+
+The onboarding playbook I wrote centres on the rule that trips people up most: list names carry priority and agent tags in brackets, and it is the lead sheet, not the name, that decides which base a list belongs to.
+
+## LLM specifics
+
+**Model.** gpt-5-mini through Zapier's ChatGPT app, reasoning effort low, JSON output mode, for both prompts.
+
+**A constrained label set.** The classifier must return one of 12 exact strings: Signed, Scheduled for a Callback, Not Interested-Hung Up, Do not call, Already Has a Lawyer, Law Firm - Employer - Insurance, At-Fault, No Injuries, No Insurance, Accident Happened Long Time Ago, Voicemail Left, Wrong Number-Bad Info. Because several can apply to one call, the prompt fixes a precedence order and separates the pairs that get confused: a calm opt-out versus refusing the pitch, an injury lawyer versus an employer or insurer, at fault versus uninsured.
+
+```text title="classifier prompt (excerpt, paraphrased)"
+Precedence, highest first:
+ 1. Wrong Number-Bad Info     not the right person; nothing else matters
+ 2. Voicemail Left            no live conversation happened
+ 3. Do not call               compliance-critical; overrides what follows
+ 4. Signed                    a completed retainer is the outcome
+ 5. Already Has a Lawyer
+ ...
+11. Scheduled for a Callback  open, needs a follow-up
+12. Not Interested-Hung Up    fallback when no specific reason applies
+```
+
+**Structured output.** One JSON object, nothing else:
+
+```json title="classifier output (illustrative)"
+{
+  "ai_disposition_tag": "Scheduled for a Callback",
+  "ai_summary": "**Lead:** first name only\n\n**Outcome:** Asked to be called back after work.\n\n**Reason for tag:** Open to the offer but could not talk.",
+  "ai_summary_plain_text": "Lead: first name only. Outcome: asked to be called back after work. ...",
+  "ai_sentiment": "Neutral",
+  "confidence_score": 78
+}
+```
+
+The summary uses fixed labels and stays within 60–180 words, so reviewers read the same shape every time. An empty or unintelligible transcript falls back to Voicemail Left or Wrong Number-Bad Info with a low score rather than an invented outcome.
+
+**Confidence.** An integer from 0 to 100 with calibration anchors: 95 and up only when several explicit signals agree, 55–69 when precedence decided between close tags, 5–15 points off for transcription noise. It is stored and routes nothing.
+
+**QA score.** The second prompt grades the agent: did the call cover prior representation, injury, fault and insurance? Green if all four, red if one was clearly missed, yellow if the transcript can't tell. A disqualified lead is green even when the agent stopped early, because stopping was correct.
+
+**Fallback log.** Unmatched calls never reach a model; the not-found log keeps the list ID and phone number, which is how the routing misses below were diagnosed.
+
+**Latency.** Fixed waits (five minutes for the transcript, a minute of pacing after the model calls) mean results land minutes after a call.
+
+{/* VERIFY: cost per call is not recorded anywhere. Add it if you have OpenAI and AssemblyAI billing or Zap task history for a known call count. */}
+
+## Results
+
+From the delivery report for 1 July – 11 August:
+
+- 9,602 of 9,634 calls processed (transcribed, tagged, written to Airtable): 99.7%, with 8 of 12 firms at no misses. The 32 misses were calls dialled from one firm's list for another firm's leads, leads not yet in a base, numbers on no firm's sheet, and two calls in the 40 minutes before a new firm's leads finished loading. An earlier report for 10–27 July recorded zero failures in transcription, the model step or the Airtable write.
+- Caveats: 474 calls from dialer lists not set up for the automation are excluded, and the error log starts on 10 July, so a miss from 1–9 July would not show.
+- Of 9,601 calls in the disposition breakdown, 9,600 carry one of the 12 tags and one has none.
+- QA grades: 894 green, 8,696 red, 11 yellow. 79% of the red are voicemails.
+
+Then the signing audit. I matched the client's list of signed leads against the dialer's call history (1 May to 23 August) and our output. 72 contacts were not recorded as Signed: 23 were never dialled in that window, 13 were dialled from lists not in Config, 8 signed on manual or inbound calls that never reach the webhook, and 28 reached the pipeline but weren't tagged Signed.
+
+I reviewed those 28 transcripts. 20 ended before anything was signed (a transfer, a hold, a form sent but not returned) and one was a voicemail, so those tags were right. 4 were clear misses, 3 probable. 27 of the 28 had been tagged Scheduled for a Callback.
+
+<Callout type="lesson" title="Audit against the client's list, not your own output">Our numbers looked clean at 99.7%. The client's list showed 72 gaps. Checking each against the dialer's history split them by owner: leads never dialled, lists never registered, calls that never hit the webhook, and 4 to 7 model misses. Only the last group is a prompt problem.</Callout>
+
+{/* VERIFY: business outcomes (review time saved, signings recovered after the audit), if available. */}
+
+## What I'd do differently
+
+- **Read the agent's disposition too.** For 20 of the 28 audited contacts the agent had marked Signed in the dialer, and we never saw it. A delayed second pass that pulls the final disposition would flag disagreements for a person, not override the model.
+- **Make "Signed" survive what follows it.** In the four clear misses the retainer was done, the call moved on to next steps, and the model let the follow-up win, although Signed outranks a callback. Those calls ran 8 to 58 minutes. I'd add a rule and an example for "signed, then scheduled", and test higher reasoning effort on long transcripts.
+- **Use the confidence score** to pick a few calls a day for a human check.
+- **Gate the QA grader again.** The single-Zap version graded only live calls over 18 seconds that weren't voicemails or wrong numbers. The split version grades everything, burying the coaching signal under voicemails.
+- **Enforce the schema.** The prompt asks for four keys while the Zap asks for five, and one example isn't valid JSON. A strict schema with an enum for the tag fixes both.
+- **Keep a labelled set.** The 28 audited calls are the start of an eval set for every prompt change.
+
+## Stack
+
+Kixie dials; four chained Zaps (with small Python steps) orchestrate; AssemblyAI transcribes; gpt-5-mini classifies and grades; Airtable holds config, per-firm bases, AI output and the error queue, with scripts for replay and lead sync; Google Sheets carries reporting; GoHighLevel is the firms' CRM; a Cloudflare Worker reads private sheets.

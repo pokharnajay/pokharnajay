@@ -1,0 +1,198 @@
+---
+title: "Custom Airtable interface extensions in React: an approvals dashboard"
+seoTitle: "Airtable interface extension in React: approvals dashboard"
+slug: airtable-interface-extensions-react
+number: 4
+date: "2026-10-06"
+category: code
+clientType: "US data-management software company"
+role: "Lead engineer"
+duration: "10 weeks (Jul–Oct 2026)"
+stack: ["Airtable Interface Extensions", "Airtable Blocks SDK", "React 19", "TypeScript", "Tailwind CSS", "Node.js", "Python", "Airtable Web API", "ESLint"]
+metrics:
+  - { label: "Boards feeding one approval queue", value: "10" }
+  - { label: "Records moved to one status field", value: "193" }
+  - { label: "Unit checks across both extensions", value: "108" }
+summary: "Custom Airtable interface extensions in React: one approvals dashboard that shapes itself by role across 10 boards, on a pure, unit-tested filter engine."
+featured: false
+draft: false
+keywords: ["Airtable interface extension", "custom Airtable app", "Airtable developer", "React Airtable", "Airtable Blocks SDK", "Airtable approval workflow"]
+diagram:
+  title: "Approvals dashboard data flow"
+  nodes:
+    - { id: boards, label: "10 Airtable boards", badge: "DB", col: 0, row: 1 }
+    - { id: map, label: "Per-board map → one Item", badge: "CODE", col: 1, row: 1 }
+    - { id: role, label: "Signed-in email → role", badge: "ID", col: 1, row: 3 }
+    - { id: filter, label: "Filter engine (pure, tested)", badge: "CODE", col: 2, row: 1, accent: true }
+    - { id: ui, label: "Role-shaped React dashboard", badge: "UI", col: 3, row: 2 }
+    - { id: write, label: "Workflow Status write-back", badge: "OUT", col: 4, row: 1 }
+  edges:
+    - { from: boards, to: map, label: "useRecords per board" }
+    - { from: map, to: filter, label: "items + facets" }
+    - { from: filter, to: ui, label: "matching rows" }
+    - { from: role, to: ui, label: "what My work means" }
+    - { from: ui, to: write, label: "approve, send, edit" }
+---
+
+{/* VERIFY: git shows 26 of 27 commits are yours. One teammate commit (12 Aug) added two extra status values (Recurring, Canceled) to the stage list; it isn't claimed here. A colleague ran the client calls. Confirm "Lead engineer" and the credit line in Context. */}
+{/* VERIFY: the project files never state the client's country. "US" came from the brief; confirm. */}
+{/* VERIFY: first commit is 31 Jul, but the docs date the build from 27–28 Jul. Duration "10 weeks" runs 27/31 Jul to the last commit on 6 Oct. */}
+
+## TL;DR
+
+- I built two custom Airtable interface extensions in React and TypeScript for the marketing team of a US data-management software company. The main one is an approvals dashboard: everyone opens the same page, and it shapes itself around whoever is signed in.
+- The approver sees every item waiting at In Review across 10 boards and can approve, send back with a stamped note, or bulk-approve across tables. Everyone else sees their own work and the full catalog.
+- Filtering runs on a pure TypeScript module with 43 mutation-tested unit checks. Most of the remaining work was fitting around what Airtable's SDK and APIs won't do.
+
+## Context
+
+The client sells data-management software. Its marketing team is small: one full-time employee, a few contractors, a designer, and an outside marketing lead who signs off everything that goes out. Their work lives in one Airtable base across a dozen tables: a content catalog, campaigns, tactics, blog, social, brand and design, and a personal task board for each of three people.
+
+A colleague ran the client calls. I built both extensions and the scripts around them, released them, and kept changing them as requests came in. This page is mostly about the approvals dashboard; the second extension, a campaign tree, reuses its building blocks. Both are released and in use. It was Airtable developer work rather than configuration: everything they asked for sits where native interfaces stop.
+
+## The problem
+
+There was no approval workflow. To get sign-off, people messaged the approver directly, and she said on the first call that fixing the approval cycle for everyone was her priority.
+
+Auditing the base turned up the problem underneath:
+
+- **Nine boards, nine status vocabularies.** Four had no "In Review" option, so nothing on them could ever reach a review queue without a schema change.
+- **Duplicate choices.** The content catalog had `In Review` and `In review`, `Drafting` and `Draft`, with records split across both. A case-sensitive filter silently missed some.
+- **Inconsistent fields.** The owner was Owner, Assignee, Tactic Owner or Writer depending on the board, and one board allowed several. Several field names ended in a space; get one wrong and the read returns nothing.
+- **Nowhere for feedback.** Five of the nine boards had no field for review notes.
+
+The first plan, one interface per person filtered by owner, was turned down on the call: the work overlaps too much and she wanted full visibility. Native interfaces can build a page per board or per person. They can't build one queue that reads nine differently shaped tables as a single list and acts on them.
+
+## Constraints
+
+- **A live base.** The team kept working during the build, so new fields were additive and old status columns stayed untouched.
+- **API limits.** The metadata API can't add a choice to an existing single-select or delete a field. Those are manual steps in the Airtable UI.
+- **SDK limits.** An extension runs in a sandboxed cross-origin iframe, can't upload attachments, sees only the tables and fields granted to it, and `useRecords` can't be called conditionally.
+- **No server.** The extension is the whole app. Maintenance scripts run separately and default to a dry run.
+
+## Approach & architecture: one Airtable interface extension, shaped by role
+
+I built one extension instead of a page per person. Role comes from the signed-in email: the approver's page is headed "Approval Dashboard", everyone else's "Marketing Dashboard". Both get two tabs. "All tasks" is identical for everyone; "My work" is everything at In Review for the approver and your own records for everyone else. Role decides who can approve and what "My work" means, never what anyone can see.
+
+The core is a translation layer. Each board gets one config entry: title field, owner field, old status column, a map from its old vocabulary onto the shared one, feedback field, due date and links. Every record becomes the same `Item` shape with a generic `facets` map that filtering, grouping and counting all read, so nothing downstream knows which table a row came from. Adding a board is one entry plus two setup steps in Airtable, which is how an engineering team's board became the tenth, a month after the first version.
+
+For status, I added a `Workflow Status` single-select to every board with the seven stages agreed on the call, and backfilled it from the old columns with a Python script. Then one asymmetric rule:
+
+- **Reads are forgiving.** The new field; if blank, the board's old status mapped across; if that's blank and "Submit for Review" is ticked, In Review.
+- **Writes are strict.** Approve, Send for review and Request changes only write the new field.
+
+Nobody's work disappears while people still use the old column out of habit, and every action on a record migrates it.
+
+## The build
+
+### Reading ten tables at once
+
+The granted tables decide what to read, and `useRecords` can't sit behind a condition. So I resolve the granted boards first and key the board component on their IDs. The hook runs in a fixed-length loop, and a change in the granted set remounts the component, so hook order never shifts:
+
+```tsx title="board.tsx"
+function Resolver() {
+  const base = useBase();
+  const granted = BOARDS.flatMap((b) => {
+    const table = base.getTableByIdIfExists(b.tableId);
+    return table ? [{ table, board: b }] : [];
+  });
+  // A new granted set remounts Board, so its hook count is fixed per mount.
+  return <Board key={granted.map((g) => g.board.tableId).join("|")} granted={granted} />;
+}
+
+function Board({ granted }: { granted: GrantedBoard[] }) {
+  // eslint-disable-next-line react-hooks/rules-of-hooks -- length fixed by the key above
+  const feeds = granted.map(({ table }) => useRecords(table));
+  // ...
+}
+```
+
+### Resolving a stage
+
+```ts title="resolve-stage.ts"
+function resolveStage(row: Row, board: BoardConfig): string {
+  const unified = selectName(row.get(WORKFLOW_FIELD));
+  const legacy = board.statusMap?.[selectName(row.get(board.legacyStatus))];
+  let stage = unified || legacy || "";
+  const preReview = !stage || stage === "To Do" || stage === "In Progress";
+
+  // An explicit review request in the old column still reaches the approver.
+  if (legacy === "In Review" && preReview) stage = "In Review";
+  // So does the board's own "Submit for Review" box, when no stage is set.
+  if (!unified && row.get(board.submitFlag) && preReview) stage = "In Review";
+  return stage;
+}
+```
+
+The first escalation came later: people kept typing In Review into the old column after the new field was set, and those requests never reached the queue. The guard only lifts pre-review records, so a finished record with a stale old value stays finished.
+
+### A filter engine I could test
+
+The approver's headline ask was filtering by content type: every case study, every blog, each Monday. I built an Airtable-style condition builder with 15 facets, and/or groups nested two deep, and live counts. Options come from each field's declared choices, so a new select option appears at count 0 before any record uses it.
+
+I didn't trust a condition builder I'd only clicked through, so I moved the model and evaluation into a module with no React import that runs under plain Node. The semantics match Airtable's own filter panel:
+
+```ts title="filter-engine.ts"
+export function evalNode(row: Filterable, node: FilterNode): boolean {
+  if (node.kind === "condition") return evalCondition(row, node);
+  if (node.children.length === 0) return true; // an empty group constrains nothing
+  return node.conjunction === "and"
+    ? node.children.every((c) => evalNode(row, c))
+    : node.children.some((c) => evalNode(row, c));
+}
+
+function isAnyOf(cellValues: string[], picked: string[]): boolean {
+  if (picked.length === 0) return true; // inert until a value is chosen
+  return picked.some((v) => cellValues.includes(v));
+}
+```
+
+The 43 checks cover AND, OR, nested groups, a group's conjunction not leaking into its parent, empty cells, date boundaries, and edits that leave siblings alone. Then I broke the engine three ways on purpose: OR evaluated as AND failed 6 checks, empty groups returning false failed 3, and a non-recursive removal failed 1.
+
+### Writing back inside Airtable's rules
+
+- Each field type has its own editor, because write formats differ: selects want `{name}`, collaborators `{id}`, multi-value fields arrays, and clearing is `null`.
+- Controls check permissions first and show Airtable's own reason, rather than failing on write.
+- Bulk approve groups the selection by table and writes in batches of 50, Airtable's per-call limit, reporting anything skipped.
+- Request changes appends a note stamped with reviewer and date to that board's feedback field, so history survives.
+- Attachments stay read-only; the SDK can't upload files.
+- Interface pages can't host a real grid, so an "Open grid" link opens the current board's table.
+
+### The second extension: a campaign tree
+
+A later request asked for a four-level campaign hierarchy: integrated campaign, campaign, tactic, production item. Linked records already modelled it; Airtable lacked a nested view. The extension shows the levels as one tree or as nested sub-tables, with drag to re-parent, bulk stage changes, and a three-step wizard that creates and links a whole campaign from templates (webinar, WordPress page, two event types, gated asset), chosen per tactic. Before that last change, three tactics under one event template got the same 34 items three times.
+
+The base's links were messy: three duplicate link pairs between campaigns and tactics, and production items pointing at their tactic by name in a text field. The tree reads every variant, matches the text, and lists anything it can't place as unlinked instead of dropping it. A Setup checks panel tells the client's team what to fix, since that means deleting fields. Tree assembly (52 checks) and the schema audit (13) are pure modules.
+
+Deleting a parent now deletes its children, deepest level first, so a failed batch can't strand rows nobody can see. My first version deleted from the filtered copy of the tree and left anything outside the filter behind; it now looks the node up in the unfiltered tree.
+
+## Results
+
+<Compare
+  beforeLabel="Before"
+  afterLabel="After"
+  before="Sign-off meant messaging the approver. Four of nine boards had no review stage, so their work could never be queued for her."
+  after="One page lists everything at In Review across 10 boards. She approves, sends back with a note, or bulk-approves without leaving Airtable."
+/>
+
+What the files show:
+
+- Both extensions are released and in use.
+- The backfill moved 193 records on nine boards onto the shared status field, with 0 unmapped values. At the last audit the dashboard covered 281 records, 11 waiting at In Review.
+- 108 unit checks pass across both extensions: 43 filter, 52 tree, 13 schema audit.
+- The client keeps extending it: a tenth board, a Testing stage before review, and in October two post-approval queue stages the approver added herself.
+
+{/* VERIFY: add measured outcomes if the client can give them (approval turnaround, messages avoided, hours saved, weekly active users). "Released and in use" comes from HANDOFF.md (11 Aug); confirm it still holds. The 281 / 11 figures come from the late-July audit, when there were nine boards. */}
+
+<Callout type="lesson" title="Forgiving reads, strict writes">The first cut-over read only the new status field. It broke two things at once: the approver's queue dropped from 12 items to 10, and 17 archived records showed as blank. Reading the old column as a fallback fixed both without stalling the migration, because every write still lands on the new field. Mid-migration, people's old habits are data.</Callout>
+
+## What I'd do differently
+
+- **Parse the literal ask.** One message asked for the original table view to be reachable, which meant a link. I misread it and built a Columns picker first. The picker earned its place, but the link was the ask.
+- **Give old columns an end date.** One board ended up with three status fields, and a team member fairly asked which one triggers review. The fallback needs a retirement date and an owner, not just a code comment.
+- **Share code properly.** The UI kit, cell helpers and filter engine are copied into both extensions and already differ slightly. A shared package would stop the drift.
+- **Take roles out of code.** Roles come from a hard-coded email list, so a new approver means a release. A roles table in the base would let the client manage it.
+
+## Stack
+
+Both extensions are React 19 and TypeScript on Airtable's Blocks SDK, styled with Tailwind in explicit pixels because Airtable's scale sets `base` at 13px. Tests are plain `tsc` plus Node, no framework. Python scripts on the Airtable Web API ran the backfill and regenerate the schema docs. Types, ESLint and tests must pass before each release, and the dev server is stopped first, because a release deletes the build folder it serves from.

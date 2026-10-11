@@ -1,0 +1,199 @@
+---
+title: "LLM document extraction with confidence gates on Cloudflare Workers"
+seoTitle: "LLM document extraction on Cloudflare Workers"
+slug: llm-document-extraction-pipeline
+number: 2
+date: "2026-08-11"
+category: ai-agents
+clientType: "US childcare staffing agency"
+role: "Lead engineer"
+duration: "1 week"
+stack: ["Cloudflare Workers", "OpenRouter", "JavaScript", "Airtable API", "React", "Node.js"]
+metrics:
+  - { label: "Real applications in the test corpus", value: "20" }
+  - { label: "Minimum confidence before any write", value: "0.6" }
+  - { label: "Upload wait, analysis split off", value: "18.5s → 3.5s" }
+summary: "LLM document extraction on Cloudflare Workers that reads applicants' PDFs into structured fields, built so a low-confidence guess never overwrites good data."
+featured: false
+draft: false
+keywords: ["LLM document extraction", "AI document processing", "Cloudflare Workers", "PDF classification with LLMs", "OpenRouter free models", "confidence threshold"]
+diagram:
+  title: "Applicant document pipeline"
+  nodes:
+    - { id: app, label: "Indeed application JSON", badge: "IN", col: 0, row: 1 }
+    - { id: form, label: "Recruiter review screen", badge: "UI", col: 1, row: 1 }
+    - { id: worker, label: "Worker: attach + analyze", badge: "CF", col: 2, row: 2 }
+    - { id: llm, label: "LLM: classify document", badge: "AI", col: 3, row: 3, accent: true }
+    - { id: gate, label: "Rules gate (0.6 floor)", badge: "CODE", col: 4, row: 2 }
+    - { id: rec, label: "Airtable candidate record", badge: "DB", col: 5, row: 1 }
+  edges:
+    - { from: app, to: form, label: "parse + dedupe" }
+    - { from: form, to: rec, label: "create, after review" }
+    - { from: form, to: worker, label: "record ID + files" }
+    - { from: worker, to: rec, label: "attachments" }
+    - { from: worker, to: llm, label: "PDF text layer" }
+    - { from: llm, to: gate, label: "JSON + confidence" }
+    - { from: gate, to: rec, label: "patch, or nothing" }
+---
+
+{/* VERIFY: git shows a teammate made the first intake-form and upload-Worker commit (5 Aug 2026). The analysis layer, the newborn module and the prompt validator are yours (11 Aug). Confirm "Lead engineer" and the sentence crediting the teammate in Context. */}
+
+## TL;DR
+
+- Applicants to a US childcare staffing agency attach résumés and certificates as PDFs. I built the LLM document extraction step that reads them on Cloudflare Workers and turns each file into a small JSON verdict: category, credential, issuer, confidence.
+- It is built around one rule: a wrong guess must never overwrite good data. Verdicts below 0.6 confidence are ignored, "unknown" never writes, and a candidate's own "no" outranks anything found in a file.
+- Nothing becomes a record until a recruiter has seen the full write plan and clicked to add it. After that, the model can touch exactly two fields, under rules written in plain code.
+
+## Context
+
+The client places nannies, newborn care specialists and doulas with families. Indeed is their biggest source of applicants, and they only accept certified doulas and newborn care specialists, with the certificate as proof. Before this project nothing in an application was extracted into fields: the résumé was attached to the record and a recruiter opened it to read it.
+
+In this larger recruitment automation build, a recruiter drops an Indeed application file into a custom Airtable interface and it becomes a candidate record with 20 fields filled in. A teammate built the first cut of that intake form and the upload Worker. I built the document-reading layer on top, and the rules that decide what it may write. Two fields mattered for scoring: `Certificate Status` and `Newborn/Infant Experience`. Both had to come from the documents.
+
+## The problem
+
+At intake, `Certificate Status` was decided by a filename regex: cheap, and wrong in both directions. One real file was named `certificate-…CPR.pdf`, which reads as a caregiving credential but is first-aid proof. Another was `IMG_9326.pdf`, which says nothing. Indeed only labels files `resume` or `other`, so the filename was the only signal.
+
+Before building anything I went through 20 real applications (27 embedded PDFs). The findings were blunt:
+
+- Indeed's plain-text résumé was present on only 6 of the 20. Any AI step had to read the PDF itself.
+- 18 of the 20 carried nothing but a résumé. A missing certificate is normal, so an aggressive pipeline would mostly be guessing about absence.
+- Several filenames carried no signal at all: UUIDs, phone photos, long numeric names.
+
+The newborn question failed differently: lead scoring asked a model about the résumé inside Airtable's 30-second fetch cap, and when the model timed out, the whole score failed.
+
+{/* VERIFY: add how long recruiters spent opening and checking documents per applicant, if the client can say. */}
+
+## Constraints
+
+- **No uploads from the extension.** Airtable's interface extensions can't upload attachments, and the upload API needs a token that must not ship to a browser. A Cloudflare Worker holds the token and does the uploads.
+- **Free-tier models.** The model budget was zero, so both models run on OpenRouter's free tier, which rate-limits hard. Neither accepts a PDF directly, so files go through OpenRouter's file parser with the `pdf-text` engine.
+- **Scans are unreadable.** `pdf-text` only reads a text layer. OCR would handle photographed certificates, but it isn't free, so "could not read" had to be its own answer.
+- **A live base.** The client's base is in daily use, changes are additive, and single-select fields reject values that aren't existing options.
+- **Candidate data.** Raw application dumps stay out of git, and Indeed's demographic (EEO) block is never stored or scored.
+
+## Approach & architecture: LLM document extraction behind a gate
+
+I kept the model's job as small as I could, with a human in front of it and deterministic code behind it.
+
+1. **Parse and review.** The extension parses the application, flags existing records with the same email or phone, and shows the full write plan: every field, every screener answer, and where each document will land.
+2. **Create and attach.** On confirmation it creates the record and posts the files to the Worker, which attaches them one at a time and only then marks the record as a new lead.
+3. **Analyse in the background.** The extension fires a second call to the Worker's analyze endpoint and does not wait. The Worker reads the documents through the LLM.
+4. **Gate.** Plain code compares the model's verdicts with the record and the candidate's own answers, and returns an update it can justify, or nothing.
+
+Steps 2 and 3 are separate calls because of a measurement. On this Worker, `waitUntil` did not release the client connection: a 46 KB upload returned in 3.5 seconds alone and in 18.5 seconds with analysis queued behind it. So the caller walks away instead, and the Worker's own `waitUntil` finishes the analysis even if the tab closes.
+
+Deterministic code goes first wherever it can. Files are routed by filename, and anything unrecognised goes to the general documents field rather than being guessed at. The newborn question is answered for free from Indeed's structured résumé data when a newborn-specific term appears, and only falls through to the model when it doesn't. Both modules are shared by the extension and the Worker, so the preview cannot drift from what actually happens.
+
+## The build
+
+The gate is the part I care most about. Simplified:
+
+```js title="certificateGate.js"
+const FLOOR = 0.6;
+
+export function certificateVerdict(analysis, { asked, answer }) {
+  if (asked && answer === "no") return null; // their own "no" wins
+  const proof = analysis.documents.find(
+    (d) => d.category === "professional_certification" && d.confidence >= FLOOR
+  );
+  if (proof) return { value: "Certified + Document", because: proof };
+  const readEverything = analysis.ran && !analysis.stoppedEarly &&
+    analysis.analysed === analysis.total &&
+    analysis.documents.every((d) => d.category !== "unknown");
+  if (readEverything && asked && answer === "yes") return { value: "Certified - Claimed Only" };
+  return null; // write nothing; the intake value stands
+}
+```
+
+`null` is the most common answer and the important one. A scan, a rate-limited call or an early stop is not evidence that a credential is missing, so none of them can downgrade anything. The newborn field works the same way with three values: "Yes", "No" and "Not assessed". A model "no" only becomes "No" when the résumé was readable, and a "Yes" from the structured pass is never re-read or downgraded.
+
+Rate limits shaped the retry code more than anything else. A live run over five documents hit HTTP 429 on the fallback model partway through, so I stopped trying the models in strict order and alternated them, giving a rate-limited model time to recover:
+
+```js title="attemptPlan.js"
+const MODELS = ["primary-reasoning-model", "fallback-instruct-model"];
+const ROUNDS = 3;
+
+export function attemptPlan() {
+  const plan = [];
+  for (let round = 0; round < ROUNDS; round++)
+    for (const model of MODELS) plan.push({ model, round }); // A B A B A B
+  return plan;
+}
+
+export function onStatus(status) {
+  if ([401, 402, 403].includes(status)) return "fatal"; // bad key or no credit: stop
+  if (status === 429 || status === 408 || status >= 500) return "wait"; // back off
+  return "switch"; // this model can't serve it; try the other
+}
+```
+
+Backoff is exponential with jitter, honours `Retry-After` and caps at 45 seconds. Calls are paced 3.5 seconds apart inside a 240-second budget, after which the Worker returns what it has.
+
+Smaller decisions cut calls further. The résumé is skipped for the certificate question, so most applications need no certificate call. Likely certificates are read first (the filename orders the queue, never decides), and the loop stops once a credential is confirmed. The newborn read is skipped when the structured pass already said yes, which avoided the call on 6 of the 20 sample applications.
+
+Uploads run one at a time, because concurrent writes to one attachment field can drop each other, and a partial success returns HTTP 207 with a per-file breakdown. Staging and production have separate base allowlists.
+
+## LLM specifics
+
+**Models.** A small reasoning model (NVIDIA Nemotron 3 Nano Omni) as primary and Gemma 4 26B as fallback, both free on OpenRouter. Classifying extracted text into eight categories is within reach of small models, and the budget was zero. Temperature 0, 700 max tokens, 60-second timeout.
+
+**Prompt.** The category list is short on purpose, because a long list makes small models hedge. Most of the prompt is negative rules from the domain: CPR and first aid are never a professional certification, even when the document calls itself a certificate; unreadable text means "unknown" with confidence 0; never guess from the filename. The newborn prompt is just as narrow: a daycare assistant who only worked with toddlers must come back false.
+
+**Structured output.** The primary model doesn't support `response_format` and writes its reasoning before the JSON. So replies go through a tolerant extractor that keeps the last balanced object containing a key we asked for. The key check matters, because a reasoning model's preamble often includes example objects of its own.
+
+```js title="extractJson.js"
+export function lastObjectWith(text, hasKey) {
+  const s = String(text || "").replace(/`{3}(?:json)?/gi, "");
+  let depth = 0, start = -1, best = null;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === "{" && depth++ === 0) start = i;
+    if (s[i] === "}" && --depth === 0 && start !== -1) {
+      try { const o = JSON.parse(s.slice(start, i + 1)); if (hasKey(o)) best = o; }
+      catch { /* not valid on its own; keep scanning */ }
+    }
+  }
+  return best;
+}
+```
+
+The result is then validated against the expected shape, and a mismatch switches models instead of burning a long backoff.
+
+The same idea covers a sibling extraction prompt in the system, which writes directory-sourced profiles into select fields. Airtable drops a select value that isn't an existing option, silently. So a small Node script parses that prompt, pulls out every field and option it names, checks them against the live base schema, and fails if any can't be stored. It runs after every edit to the prompt or the base.
+
+**Guardrails.** The 0.6 floor, "unknown never overwrites", the candidate's "no" winning, downgrades only after a complete read, "Yes" never downgraded. All of it lives in code after the model, so it holds whatever the model says.
+
+**Evals.** There is no labelled accuracy set yet. Testing was the 20-application corpus, the known filename failures, and live runs against the free tier. {/* VERIFY: add accuracy figures if you ran the classifier over the corpus PDFs and checked the results by hand. */}
+
+**Cost and latency.** Model spend is zero. The recruiter waits only for the upload; analysis can take minutes in the background.
+
+## Results
+
+<Compare
+  beforeLabel="Before"
+  afterLabel="After"
+  before="Certificate Status came from a filename regex. A first-aid card named 'certificate' read as a credential, and a phone photo told it nothing."
+  after="Certificate Status changes only on evidence from the document text at 0.6 confidence or higher. An unreadable file, a failed call or an early stop writes nothing."
+/>
+
+What I can state with evidence:
+
+- Moving analysis into its own call kept the recruiter's wait at 3.5 seconds instead of 18.5 in the measured case.
+- Every application passes a person who sees the full write plan before a record exists.
+- By construction, the model cannot turn a "no" into a "yes", downgrade on an incomplete read, or overwrite a value with "unknown".
+- The intake ran on the staging base from August and went to production at the end of September.
+
+{/* VERIFY: add measured outcomes (applications processed, documents read, how often Certificate Status was corrected, recruiter time saved). (The 11 Oct client-requested hide of one intake page was left out on purpose.) */}
+
+<Callout type="lesson" title="'Could not read' is not 'no'">The most useful thing I built here is a third answer. Every field the model touches has a state that means "nobody could tell", and that state never overwrites anything. Without it, every scanned certificate and every rate-limited call would have quietly marked a qualified candidate as unqualified.</Callout>
+
+## What I'd do differently
+
+- **Budget for OCR from day one.** Phone-photo certificates all land in "unknown" today. Safe, but the reading falls back to recruiters.
+- **Start on a cheap paid model.** Free models move: elsewhere in this system, the free models behind lead scoring were withdrawn or stopped returning JSON, and scoring moved to paid models with native JSON output. I'd make one of those the primary and keep the free ones as fallbacks.
+- **Build the eval set first.** Twenty applications is small enough to label by hand. I'd do it before tuning the prompt, so I could report precision and not just guarantees.
+- **Show the verdict.** Analysis is fire-and-forget, so its reasoning ends up in Worker logs. A one-line reason on the record would show a recruiter why a status changed.
+
+## Stack
+
+A Cloudflare Worker in plain JavaScript handles uploads, OpenRouter calls and the gate; OpenRouter's file parser extracts the PDF text; an Airtable interface extension in React is the recruiter's review screen; and a small Node script keeps a sibling prompt in step with the live base schema.

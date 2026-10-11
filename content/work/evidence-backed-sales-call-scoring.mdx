@@ -1,0 +1,169 @@
+---
+title: "Evidence-backed LLM sales call scoring for uploaded transcripts"
+seoTitle: "LLM sales call scoring: the model reads, code checks"
+slug: evidence-backed-sales-call-scoring
+number: 3
+date: "2026-10-11"
+category: ai-agents
+clientType: "US recruiting firm"
+role: "Engineer on a 3-person team (manual scoring, verification)"
+duration: "8 days (Oct 2026)"
+stack: ["OpenAI API", "TypeScript", "Node.js", "Next.js", "PostgreSQL", "Drizzle ORM", "unpdf", "Fireflies API", "Make.com", "Slack"]
+metrics:
+  - { label: "Long uploads timed correctly", value: "1/3 → 5/5" }
+  - { label: "Timestamp read, 57-min call", value: "52 s → ~5 s" }
+  - { label: "Down-sell check vs hand review", value: "10 / 10 calls" }
+summary: "LLM sales call scoring for any uploaded transcript: the model reads timestamps and quotes as structured output, and code verifies every claim before it counts."
+featured: false
+draft: false
+keywords: ["LLM sales call scoring", "AI call analysis", "structured outputs", "LLM verification", "transcript timestamps"]
+diagram:
+  title: "Manual call scoring pipeline"
+  nodes:
+    - { id: up, label: "Uploaded transcript", badge: "IN", col: 0, row: 1 }
+    - { id: read, label: "Safe file reader", badge: "CODE", col: 1, row: 1 }
+    - { id: tsl, label: "LLM: list first 12 turns", badge: "AI", col: 2, row: 0, accent: true }
+    - { id: tsc, label: "Code: check, read all turns", badge: "CODE", col: 3, row: 0 }
+    - { id: score, label: "Team scorer: quoted claims", badge: "AI", col: 4, row: 1 }
+    - { id: ds, label: "LLM: down-sells + quotes", badge: "AI", col: 4, row: 3 }
+    - { id: out, label: "Pop-up, Feedback list, Slack", badge: "OUT", col: 6, row: 1 }
+  edges:
+    - { from: up, to: read, label: "file bytes" }
+    - { from: read, to: tsl, label: "text" }
+    - { from: tsl, to: tsc, label: "claimed times" }
+    - { from: tsc, to: score, label: "timed or unknown" }
+    - { from: tsc, to: ds, label: "transcript" }
+    - { from: score, to: out, label: "report" }
+    - { from: ds, to: out, label: "quote-checked flags" }
+---
+
+## TL;DR
+
+- A US recruiting firm runs LLM sales call scoring on every recorded sales call. A teammate had rebuilt the automatic scorer around one rule: the model returns quoted claims, plain code does the scoring. I extended that rule to messier input.
+- Manual scoring: anyone can upload a transcript file. The model reads its timestamps; code checks every one against the file before a 5-point timing rule may use it. Long uploads went from timed correctly in one run of three to five of five, and from 52 seconds to about five.
+- A down-sell check: a separate model call whose "yes" only counts if the rep's quoted sentence is in the transcript. It matched a hand review on ten production calls.
+
+## Context
+
+The client places overseas hires with US companies. Its reps run recorded discovery calls, and each call is scored against the firm's sales SOP: seven categories worth 20 points, minus 5 for pitching before a set time. Reps get the report in Slack, and managers read it on a Feedback tab in the internal sales dashboard.
+
+Three of us at Etherwise worked on this engagement. In August I wrote the analysis of the client's original no-code bot, which ran one LLM call at temperature 1, returned free-text HTML, let a second LLM reformat the numbers, and compared timestamps in prose. A teammate then built the automatic scorer in the dashboard: transcript ingest from the call recorder, structured claims backed by quotes, arithmetic in code, and the Feedback tab. I took over the engagement in September. This case study covers what I built on top of it in October.
+
+{/* VERIFY: attribution. Git: core scorer modules (27 Aug – 1 Sep 2026) authored by a teammate; manual scoring, timestamp verification, file reader and down-sell check (4–11 Oct 2026) authored by Jay. */}
+
+## The problem
+
+The automatic scorer only saw calls the recorder caught under one meeting title. Managers wanted to score any call, including ones recorded by other tools or already scored, which meant uploaded Word, PDF, subtitle and text files in any layout.
+
+The scorer's trust model leaned on two things an upload does not guarantee:
+
+- **Timestamps.** Recorder transcripts carry a machine time on every sentence. An upload might have a time per turn, clock times, or none, plus times people say aloud. The early-pitch deduction is 5 points out of 20, so one wrong time costs a rep a quarter of their score.
+- **Clean text.** Quote checking assumes a tidy sentence stream, not a PDF with wrapped lines and page furniture.
+
+The down-sell question had its own trap: ask a model whether financing came up on a 40-minute sales call and it nearly always says yes, because price and terms come up on every call.
+
+## Constraints
+
+- **One pipeline.** Manual scores had to go through exactly the same scorer as automatic ones, not a second scoring path.
+- **Keys stay in the worker.** The web route cannot call the model, so it queues a request and the worker drains the queue.
+- **Do not move existing scores.** Category scores drive coaching and rep averages. On a sibling feature that week, one prompt edit had moved 11 of 20 outputs that were already correct.
+- **Untrusted files** up to 5 MB, and a live Slack channel that staging must never reach.
+
+## Approach & architecture: evidence-first LLM sales call scoring
+
+The team's rule, applied one step earlier: the model may read and claim, and code verifies before anything is used. When verification fails, the system says "time stamps unknown" or "not analysed" instead of guessing.
+
+<Steps>
+  <Step title="Read the file safely">Type decided from the file's own bytes, size and text caps, a hard limit on bytes produced while unpacking Word files, a decompression budget for PDFs.</Step>
+  <Step title="The model reads timestamps">It says whether the file has per-turn times and lists the first 12 turns: the time as written and the first words spoken.</Step>
+  <Step title="Code checks, then reads">Every claim is verified against the file. Code learns the file's header layout, reads every turn itself and rewrites the text into the recorder's format.</Step>
+  <Step title="Score through the team's pipeline">Same no-show check, same quoted claims, same arithmetic in code.</Step>
+  <Step title="One result, three places">The pop-up, the Feedback list under its own key beside any automatic score, and Slack through a relay that records a random key per request so nothing posts twice.</Step>
+</Steps>
+
+## The build
+
+### Timestamps: the model reads, code checks
+
+My first version was code only: a strict parser for the common transcript layouts. The client asked for the AI to recognise timestamps instead, so it could cope with layouts no parser anticipated. I kept the parser's strictness by turning it into the checker.
+
+```ts title="timestamps.ts"
+// The model claims; a claim counts only if the file proves it.
+function checkClaims(text: string, claims: TurnClaim[]): Verdict {
+  if (claims.length < MIN_TIMED_TURNS) return unknown("too few timed turns");
+  let from = 0;
+  for (const c of claims) {
+    const at = findWords(text, c.firstWords, from);      // in order, never earlier
+    if (at < 0) return unknown("a listed turn is not in the file");
+    const header = text.slice(lineStart(text, at), at);  // what sits before the words
+    if (!header.includes(c.time) || isClockTime(header)) return unknown("not a turn header");
+    from = at;
+  }
+  const layout = learnHeaderLayout(text, claims);         // then read every turn this way
+  const turns = readAllTurns(text, layout);
+  return plausible(turns) ? timed(toScorerFormat(turns)) : unknown("times implausible");
+}
+```
+
+"Plausible" means seconds into a call, not a clock: starting near 0:00, in order, close together and rarely repeated, with times of day like "1:02 PM" refused. Long turns are split into sentences with times spread up to the next stamp, so a late sentence never inherits the turn's start time. The result is in the same shape as a recorder transcript, so the existing scorer and its pitch rule work unchanged.
+
+### Long uploads: ask the model for less
+
+My first version asked the model to list every turn. On a real 57-minute Word export with 262 turns, two runs in three came back "unknown", one for a dropped repeated word and one for a skipped turn, and a run took 52 seconds. Now the model lists only the first 12 turns, and code reads the other 250 using the layout those 12 prove. Five runs of five timed all 262 turns with the right speaker and time, in about five seconds.
+
+### The down-sell check
+
+The client wanted to know whether reps who could not close at least offered the two cheaper fallbacks: a payment plan and a staffing arrangement. It runs as a separate model call with its own prompt, schema and try/catch, so it cannot touch the scores and its failure costs nothing else.
+
+```ts title="quote-check.ts"
+// Exact match, or ≥ 80% word overlap with some same-length window of speech.
+export function quoteSupported(quote: string, transcript: string): boolean {
+  const q = words(quote);
+  const t = words(speechOnly(transcript));
+  if (q.length < 5) return false;
+  if (t.join(" ").includes(q.join(" "))) return true;
+  let best = 0;
+  for (let i = 0; i + q.length <= t.length; i++) {
+    best = Math.max(best, sharedWords(q, t.slice(i, i + q.length)) / q.length);
+  }
+  return best >= 0.8; // a one-word paraphrase passes; an invented sentence does not
+}
+```
+
+I ran it on ten real production calls before shipping. My first version used exact matching and missed a real pitch: the rep said "split that up", the model quoted "split it up", and one word in fourteen threw away a textbook financing offer. Telling a manager a rep skipped a down-sell they made is the worst outcome here, so matching moved to word overlap.
+
+## LLM specifics
+
+**Model.** My calls go through the team's adapter, which pins gpt-5.4 at temperature 0 with a fixed seed; the team chose it for repeatability. I did not change the model.
+
+**Prompting.** The timestamp prompt spends most of its words on what is not a timestamp: times said in the call, dates, durations, times of day, page numbers. It forbids inventing, rounding or converting a time. The down-sell prompt sets the bar at an offer the rep made and can be quoted on, and tells the model that "no" is a normal answer.
+
+**Structured outputs.** Strict `json_schema` on both: a timed flag plus a list of speaker, time and first words for timestamps; two booleans with a nullable quote each for down-sells.
+
+**Guardrails.** Nothing the model says is used until code has checked it. Results have three states, and an unchecked one renders as absent. The down-sell call is optional on the model interface, so existing callers compiled untouched.
+
+**Tests.** Unit tests for the timestamp checker, file reader, down-sell check and scoring job, plus real-model runs on Word, PDF, subtitle and text uploads. The isolation guards are mutation-tested: delete either try/catch and a test fails. Test Slack posts point at a `.invalid` host that can never resolve.
+
+**Latency.** About five seconds to read timestamps on a 57-minute upload; the down-sell check adds one model call.
+
+## Results
+
+<Callout type="lesson" title="Ask the model for less">Copying 262 turns gave the model 262 chances to slip, and one slip made the whole file "unknown". Twelve turns proved the layout; code, which never tires, did the rest.</Callout>
+
+- **Manual scoring merged to main on 6 October**, open to everyone on the sales dashboard.
+- **Long uploads:** correctly timed in five runs of five instead of one in three, 262 of 262 turns, about five seconds instead of 52.
+- **Untimed files** come back as "time stamps unknown", confirmed with the real model.
+- **Down-sell check:** on ten production calls, two financing offers, three staffing offers and five correctly silent, matching a hand review. Ready for staging on 11 October, informational until the client decides whether a missed down-sell should cost points.
+- **483 worker tests and 141 scoring-package tests** passing at ship.
+
+{/* VERIFY: manual scores run since launch, and whether managers use the down-sell flag. Not recorded in the project files. */}
+
+## What I'd do differently
+
+- **Collect the open questions before the first commit.** I built manual scoring on defaults, then rebuilt parts when the client's answers arrived: everyone, upload only, score again.
+- **Start tolerant on quotes.** The team had already learned that a failed quote is usually a paraphrase. My first down-sell version went stricter anyway, and real data sided with the team.
+- **Name the known limit up front.** The recorder sometimes merges both speakers under one label, so "the rep said it" cannot always be enforced from the transcript.
+
+## Stack
+
+TypeScript throughout: a Next.js upload route, a Node.js worker draining a PostgreSQL queue via Drizzle ORM, unpdf for PDFs, the OpenAI API, and a Make.com relay for Slack.

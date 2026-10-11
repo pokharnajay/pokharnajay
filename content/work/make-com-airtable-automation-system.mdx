@@ -1,0 +1,180 @@
+---
+title: "Make.com Airtable automation for a Swedish home-staging company"
+seoTitle: "Make.com Airtable automation for a home-staging firm"
+slug: make-com-airtable-automation-system
+number: 5
+date: "2026-10-09"
+category: no-code
+clientType: "Swedish home-staging company"
+role: "Automation engineer, Etherwise"
+duration: "6 months (Apr–Oct 2026)"
+stack: ["Make.com", "Airtable", "Fortnox API", "Facebook Lead Ads", "Brevo", "Gmail", "Google Drive", "Tawk.to", "OpenAI API", "Python", "Claude Code"]
+metrics:
+  - { label: "Inherited scenarios documented", value: "127" }
+  - { label: "Airtable tables documented", value: "58" }
+  - { label: "New scenarios built", value: "5" }
+summary: "Make.com Airtable automation for a Swedish home-staging firm: I mapped 127 inherited scenarios, then built invoicing and lead flows that flag their own failures."
+featured: false
+draft: false
+keywords: ["Make.com expert", "Make.com Airtable automation", "Make.com developer", "Make.com error handling", "Fortnox Make.com invoicing", "Airtable automation"]
+diagram:
+  title: "Leads, chat and invoicing on Make + Airtable"
+  nodes:
+    - { id: forms, label: "Facebook lead forms", badge: "IN", col: 0, row: 0 }
+    - { id: chat, label: "Website chat widget", badge: "IN", col: 0, row: 2 }
+    - { id: proj, label: "Airtable projects base", badge: "DB", col: 0, row: 3 }
+    - { id: leads, label: "Airtable leads base", badge: "DB", col: 3, row: 1 }
+    - { id: llm, label: "OpenAI reply (inherited)", badge: "AI", col: 3, row: 2 }
+    - { id: inv, label: "Make: rental invoicing", badge: "MAKE", col: 3, row: 4, accent: true }
+    - { id: sms, label: "Brevo SMS, one per brand", badge: "OUT", col: 6, row: 0 }
+    - { id: fx, label: "Fortnox invoice + email", badge: "OUT", col: 6, row: 3 }
+  edges:
+    - { from: forms, to: leads, label: "watcher per form" }
+    - { from: leads, to: sms, label: "unsent view, 15 min" }
+    - { from: chat, to: llm, label: "webhook" }
+    - { from: llm, to: leads, label: "log + upsert lead" }
+    - { from: proj, to: inv, label: "starts today, unbilled" }
+    - { from: inv, to: fx, label: "create, then email" }
+    - { from: inv, to: proj, label: "Generated or Error" }
+---
+
+{/* VERIFY: authorship. The repo's handbook credits these builds to "we (Etherwise)", and the error mails in the invoicing scenarios go to you and a second address. Confirm which builds were yours alone before keeping "I built" throughout. */}
+{/* VERIFY: dates. Earliest doc file timestamps are 23 Apr 2026; git history runs 16 Jun to 9 Oct 2026. Confirm the start month for "6 months (Apr–Oct 2026)". */}
+
+## TL;DR
+
+- A Swedish home-staging company runs leads, bookings, invoicing and messaging on Make.com Airtable automation: 127 scenarios and a 58-table base, almost all built before I arrived.
+- I mapped every scenario into plain-English write-ups and diagrams staff can read, then built on top: inter-company furniture-rental invoicing into Fortnox, and a brand split so each brand's leads get their own welcome SMS.
+- Failures in the invoicing flows email the team, and failed Fortnox steps write `Error` on the project. The one AI component, an inherited chat assistant, turned out to receive nothing but "chat opened" events.
+
+## Context
+
+The client stages homes for sale in Sweden and, under a second brand, sells online interior-design courses. A sister company owns the furniture and rents it to the operating company per project, and during this work all invoicing was moving over to that sister company.
+
+Operations run on two Airtable bases (the main one has 58 tables and roughly 1,400 fields; leads land in a separate 14-table base) and a Make account that held 127 scenarios when I started, 41 of them active. My job through Etherwise was the one a Make.com expert is most often called in for: explain what is already running, keep it running, and add to it without breaking anything. I was a reader first, a Make.com developer second.
+
+## The problem
+
+The automations didn't explain themselves. Scenario names carried their own history: "SHOULD BE ACTIVE", "(copy) (copy)", "UNSURE … OLD FORTNOX!". Three active scenarios posted to webhooks that no active scenario received, so part of their work went nowhere without an error.
+
+Lead intake was nine near-identical scenarios, one per Facebook lead form. None had an error route, so an Airtable error mid-run meant a lost lead. Leads from the home-staging brand were getting the course brand's welcome SMS.
+
+Invoicing had the most expensive failure. A daily search fired an invoice for every project still matching its filter, and only a status change took a project out of it. When the status didn't move, the project was invoiced again on the next run. I traced the loop; eight duplicate invoices across four projects had to be cancelled in Fortnox.
+
+## Constraints
+
+- **A live base.** I duplicated production into a Developer Copy with identical table, field and record IDs, so a change modelled there ports one-to-one. Production changes wait for the client's approval.
+- **Swedish names, non-engineer readers.** In the copy I translated 26 table names to English and kept each Swedish original in the table's description.
+- **Real money.** For customer invoices the client's instruction stands: create automatically, but don't book and send until duplicates are under control.
+- **Inherited work stays intact.** New scenarios live in their own folders, and I saved an inherited scenario's blueprint before changing it.
+
+## Approach & architecture: a Make.com Airtable automation map before any new build
+
+I documented before I built. I pulled every blueprint through the Make API and wrote a Python generator that turns each into a step-by-step write-up and a draw.io diagram, colour-coded by module type with error handlers in red: 254 files for 127 scenarios. On top sit the documents people actually read:
+
+- A guide to the 41 active scenarios, grouped by business process. Every entry has the same shape: what it does, why, when it runs, the steps as a short story, what it touches, and what silently breaks it.
+- A lifecycle map from lead to closed project, and an English translation of every scenario name.
+- Field-by-field references for both bases, and an onboarding handbook with the real formulas.
+
+The rule for new work came out of that reading: Airtable holds the state, Make moves things. A status field says what has happened, a view acts as a queue, and a scenario only picks up work the record says is pending. A coordinator can tell from the record alone whether an automation ran, failed or is waiting.
+
+## The build
+
+### Inter-company furniture invoicing
+
+Every project that uses the sister company's furniture must produce an invoice from that company to the operating company. The fee is an Airtable formula on the project: a manual override if set, otherwise a price table chosen by service tier and a price chosen by room count.
+
+<Steps>
+  <Step title="Find">Once a day at 17:15, a scenario finds projects whose styling starts today and whose rental-invoice status is empty, and calls the invoice webhook once per project.</Step>
+  <Step title="Invoice">A second scenario creates the Fortnox invoice (fixed customer, 7-day terms, one row naming the project) and has Fortnox email it.</Step>
+  <Step title="Mark">It writes `Generated` on the project. A third, button-driven scenario bills a prorated share for projects straddling a mid-April cutoff.</Step>
+</Steps>
+
+The search is the part I'd defend hardest:
+
+```text title="due-today.formula"
+AND(
+  DATETIME_FORMAT(SET_TIMEZONE({Styling start}, 'Europe/Stockholm'), 'YYYY-MM-DD')
+    =
+  DATETIME_FORMAT(SET_TIMEZONE(NOW(), 'Europe/Stockholm'), 'YYYY-MM-DD'),
+  {Rental invoice status} != 'Generated'
+)
+```
+
+Comparing both dates as Stockholm-time strings keeps a styling that starts just after midnight from landing on the wrong day in UTC. The webhook call then fires only when the status is empty, so a project marked `Generated` or `Error` is never picked up again on its own. A retry is a deliberate click on the project's button.
+
+Every Airtable, Fortnox and HTTP step has an error route. Simplified, with generic names:
+
+```json title="create-invoice.onerror.json"
+{
+  "module": "fortnox:ActionCreateInvoice",
+  "onerror": [
+    { "module": "google-email:sendAnEmail",
+      "mapper": { "subject": "Error in automations",
+                  "content": "Failed: {{var.scenario.name}} {{var.scenario.url}}" } },
+    { "module": "airtable:ActionUpdateRecords",
+      "mapper": { "id": "{{project.id}}", "record": { "Rental invoice status": "Error" } } },
+    { "module": "builtin:Ignore" }
+  ]
+}
+```
+
+The email names the scenario and links to it. The status puts the failure on the record, where the coordinator already works. `Ignore` ends that one bundle, so one bad project doesn't fail the run.
+
+### A brand split for leads
+
+A lead's brand is decided by one field: the name of the form it came from. I added a watcher for the home-staging brand's own Facebook form, which writes that form name on every lead it creates, and split the SMS queue into two Airtable views that are mutually exclusive on it.
+
+The new SMS scenario runs every 15 minutes over its own view: leads with a phone number and no SMS yet. It sends through Brevo with a chat link pre-filled with the lead's name and email, then marks the lead as sent, dropping it from the view. If Brevo errors, `Ignore` ends the bundle before the "sent" write, so the lead stays queued and is retried on the next run. Each lead gets one SMS, from one brand.
+
+I also designed round-robin assignment for course leads (a Config table of sales groups, and a script that picks the member with the fewest current leads). It is not deployed yet.
+
+### Moving invoicing to the sister company
+
+The inherited invoice generator (46 modules) and PDF downloader (22) called Fortnox through raw OAuth HTTP modules. I replaced those seven and three calls with native Fortnox modules on the sister company's connection, keeping each scenario's structure. For the duplicate loop I proposed advancing the status after success, an existing-invoice check, and sequential processing.
+
+The weekly-rent invoice flow, also converted, is parked. Its customer lookup reads `.body` where the native module returns `.data`, so it never matches and every run would create a new Fortnox customer. More than 50 projects also have a blank invoice name, which Fortnox rejects. The fixes and a pre-flight guard are written up; it stays off until they're in.
+
+{/* VERIFY: who converted the weekly-rent flow. If it was you, say so and own the .body/.data bug. */}
+
+### Where AI sits: the website chat assistant
+
+Both brands' sites run a Tawk.to chat widget that posts to an inherited Make scenario, and it is well designed:
+
+- A router picks the brand from the widget that sent the event and finds the conversation in Airtable.
+- The prompt lives outside the scenario: in an Airtable row for one brand, as a stored OpenAI prompt with name, email and phone variables for the other.
+- Memory lives with OpenAI. The scenario calls the Responses API with storage on and the conversation ID saved in Airtable, so each turn continues the same thread.
+- Details the visitor already gave are injected as plain instructions ("email provided, do not ask again").
+- The reply returns through the webhook response; the "chat opened" event (`@started@`) is answered without the model.
+
+When I traced the chat end to end, the problem was upstream. The widgets only send that open event. Typed messages never reach Make, so the model has had nothing to answer. The fix is a widget setting that posts every message, or a decision to treat the chat as welcome-only.
+
+So AI hasn't earned its place in production here yet. It earned it in the reading: I ran the documentation pass with Claude Code over the Make and Airtable APIs, and every commit in the docs repository carries its co-author line.
+
+{/* VERIFY: how the chat finding was traced (Make execution history?) and when; whether the widget has been fixed since. Also how you checked Claude Code's drafts against the blueprints, if you want to say so. */}
+
+## Results
+
+What I can state from the files:
+
+- 127 scenarios documented with a write-up and diagram each, and both bases documented field by field.
+- Five new scenarios: three for inter-company invoicing, plus a lead watcher and an SMS sender for the home-staging brand. The June handbook lists all five as running.
+- The duplicate loop traced, eight duplicates cancelled, and two more projects found still looping.
+- Three silent failures traced to a cause: consultation bookings never fired because the Calendly account is on a free plan, which doesn't allow webhooks; the website's own booking form only emails an inbox, and none of the 139 scenarios writes it to Airtable; and the chat widget above.
+
+<Callout type="lesson" title="An error route can't catch a wrong answer">The rental-fee formula ended every price table with a default of 0. Half-room counts, eight-plus rooms and four service tiers weren't in the tables, so four projects were invoiced at zero, and nothing errored, because a zero-value invoice is valid. A corrected formula with the new price list's half-room prices is waiting for approval.</Callout>
+
+{/* VERIFY: the October blueprint export shows the daily rental-invoice search, the prorated flow and the home-staging lead watcher switched off. Confirm why (the prorated flow may have been transitional) before stating what runs today. */}
+{/* VERIFY: the files have no time-saved, run-count or invoice-volume figures. Add from Make execution history if wanted. */}
+
+## What I'd do differently
+
+- **Return blank, not zero.** A money formula should refuse to price what it doesn't know, and the search should skip blanks.
+- **Say which step failed.** The same `Error` is written whether Fortnox rejected the invoice or only the email failed. In the second case the invoice exists, and a retry from the button creates another.
+- **Don't let `Ignore` be the only record.** Make shows an ignored error as a successful run, so the email and the status are the only trace. I'd add an error-log table in Airtable.
+- **Consolidate before extending.** I built the home-staging watcher by mirroring the nine inherited ones, unprotected Airtable steps included. One watcher with a form-to-brand mapping would have been one thing to maintain instead of ten.
+- **Keep message text in Airtable.** My SMS wording is hardcoded in the scenario, the same watch-out I flagged in the inherited one.
+
+## Stack
+
+Make.com runs every flow; Airtable is the system of record and where staff see status and errors. Fortnox issues invoices, Brevo sends SMS, Facebook Lead Ads feeds intake, Gmail carries error mail. The inherited chat runs Tawk.to into OpenAI. Python generated the diagrams; Claude Code did much of the reading with me.

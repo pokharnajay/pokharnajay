@@ -1,0 +1,174 @@
+---
+title: "AI lead scoring in Airtable with a three-model LLM fallback"
+seoTitle: "AI lead scoring in Airtable with an LLM fallback"
+slug: ai-lead-scoring-airtable
+number: 1
+date: "2026-10-09"
+category: ai-agents
+clientType: "US childcare staffing agency"
+role: "Lead engineer (scoring step built solo)"
+duration: "8 weeks (Aug–Oct 2026)"
+stack: ["Airtable Scripting", "JavaScript", "OpenRouter", "GPT-4.1 mini", "Gemini Flash-Lite", "Claude Haiku", "Cloudflare Workers", "Airtable Interface Extensions", "Make.com"]
+metrics:
+  - { label: "Points the AI can take away", value: "0" }
+  - { label: "Model vendors in the chain", value: "3" }
+  - { label: "AI budget in a 180 s run", value: "90 s" }
+summary: "AI lead scoring inside Airtable's script limits: a fixed rubric sets the floor, an LLM can only raise it, and a failed model call never breaks the base."
+featured: true
+draft: false
+keywords: ["AI lead scoring Airtable", "AI lead qualification", "LLM fallback", "Airtable scripting", "OpenRouter fallback"]
+diagram:
+  title: "Lead scoring flow"
+  nodes:
+    - { id: src, label: "Job-board + directory leads", badge: "IN", col: 0, row: 1 }
+    - { id: intake, label: "Intake: résumé read once", badge: "AI", col: 1, row: 1 }
+    - { id: rec, label: "Airtable caregiver record", badge: "DB", col: 2, row: 1 }
+    - { id: rub, label: "Rubric score, 0–10", badge: "CODE", col: 3, row: 0 }
+    - { id: llm, label: "LLM chain: 3 vendors", badge: "AI", col: 3, row: 2, accent: true }
+    - { id: max, label: "Final = max(rubric, AI)", badge: "CODE", col: 4, row: 1 }
+    - { id: mk, label: "Make: application email", badge: "OUT", col: 6, row: 1 }
+  edges:
+    - { from: src, to: intake, label: "files + answers" }
+    - { from: intake, to: rec, label: "fields" }
+    - { from: rec, to: rub, label: "stored fields" }
+    - { from: rec, to: llm, label: "facts as text" }
+    - { from: rub, to: max, label: "floor, saved first" }
+    - { from: llm, to: max, label: "upgrade only" }
+    - { from: max, to: mk, label: "Status: Scored" }
+---
+
+## TL;DR
+
+- A US childcare staffing agency wanted AI lead scoring in Airtable: every new caregiver lead scored out of 10 inside the base its recruiters already use. I built it as one automation script.
+- It computes two scores: a fixed rubric over stored fields, and an LLM reading the same rubric plus the applicant's free text, scored blind. The lead gets the higher one, so AI lead scoring can raise a score but never lower or block it.
+- Airtable allows 30 seconds per fetch and 180 per run, and one failed fetch disables every request after it. The script saves the rubric result first, tries three vendors' models within a 90-second budget, and always leaves a complete record.
+
+## Context
+
+The client places nannies, newborn care specialists and doulas with US families. Recruiting ran by hand from job boards, public caregiver directories and a website form, and résumés sat as attachments with nothing extracted. The caregiver table held 1,632 records by late September, and one directory we sourced from holds 3,684 leads on its own.
+
+We were automating the pipeline from first contact to onboarding on Airtable and Make.com. Lead scoring is the screening step: a caregiver gets a score, the record moves to Scored, and Make emails the application form. Phase 1 was two weeks, renewed week to week, so every piece had to work visibly, early.
+
+I built the scoring script and the résumé check at intake. A colleague built the first version of the intake extension that creates the records.
+
+## The problem
+
+Screening meant a recruiter checking each application for the same things: certification (which only counts for doulas and newborn care specialists), years of experience, newborn work, CPR, a TB test and a TDAP vaccine. None of it was recorded as a score, so nothing downstream could act on it.
+
+My first version asked a free model, at scoring time, to read the résumé PDF and judge newborn experience. On 7 August that model hit the 30-second fetch limit, Airtable refused every later request in the run, the fallback never got a turn, and nobody was scored. It happened again on 11 August. Another run hung for 32.9 seconds and wrote nothing.
+
+A scoring step that can leave a lead blank is worse than none, because the next email waits on it.
+
+## Constraints
+
+- **A live base.** Recruiters work in it daily, so changes are additive.
+- **The scripting sandbox.** 30 seconds per fetch, 180 per run, every later request refused once one fetch throws, and no `AbortSignal`: referencing it throws before the request is sent, which made my first timeout code fail every model instantly.
+- **Strict select fields.** A plain string or an unknown choice in a select field is rejected, and a rejected write disables the rest of the run.
+- **No deploy API for scripts.** Airtable's API cannot create or edit script steps, so each change is pasted by hand into two production automations.
+- **Budget.** The build started on OpenRouter's free models.
+
+## Approach & architecture: AI lead qualification with an LLM fallback
+
+The final score is the higher of the two because they miss different things. The rubric only sees boxes a candidate ticked: a résumé describing twelve years with newborn twins earns nothing if nobody ticked "Twins". The model reads the prose. The note on the record shows both numbers, so a recruiter can see which won and why.
+
+The model scores blind. Show it the rubric's 6 and it tends to answer 6, and two opinions that agree by construction are one opinion.
+
+Documents moved out of scoring. Whether a résumé shows newborn work is answered once at intake, by keywords first and a Cloudflare Worker reading the PDF when keywords cannot decide. It is stored as Yes, No or "Not assessed", and only Yes scores: understating a candidate is recoverable, overstating is not. Scoring became text-only, a second or two per call.
+
+<Steps>
+  <Step title="Gates">Not eligible to work in the US, or a duplicate marked "No hire": no score, reason written.</Step>
+  <Step title="Duplicates">Same email already scored: copy that score, no model call. None scored: score once, write to all.</Step>
+  <Step title="Rubric">Arithmetic over stored fields, saved immediately with a note that the AI pass is pending.</Step>
+  <Step title="Second opinion">The fallback chain, inside a 90-second budget.</Step>
+  <Step title="Final write">The higher score, both breakdowns, Status moved once.</Step>
+</Steps>
+
+## The build
+
+### Save the floor first
+
+```js title="lead-scoring.js"
+// 1. The floor: arithmetic over stored fields, saved before any network call.
+const rubric = scoreRubric(fields);
+await save(recordId, { score: rubric, note: compose(rubric, PENDING_AI) });
+
+// 2. The upgrade: never throws; returns { score } or { failed, attempts }.
+const ai = await aiSecondOpinion(candidateFacts);
+
+// 3. The AI can raise the score, never lower or block it.
+const final = typeof ai.score === "number" ? Math.max(rubric, ai.score) : rubric;
+try {
+  await save(recordId, { score: final, note: compose(final, ai) });
+} catch (e) {
+  console.log(`Rubric score ${rubric} is already saved; only the second opinion was lost.`);
+}
+```
+
+Catching an exception does not undo Airtable's lockout: once a fetch throws, the final update is refused too. So I inverted the order. The rubric needs no network, so its complete result is saved before the first model call and the AI pass replaces it. A model failure now costs the second opinion and nothing else.
+
+### Two kinds of failure
+
+```js title="ai-second-opinion.js"
+for (const model of MODELS) {                       // fastest first
+  if (Date.now() - started > AI_BUDGET_MS) break;   // leave time to write
+  try {
+    const res = await fetch(OPENROUTER_URL, requestFor(model));
+    if (!res.ok) { attempts.push(`${model}: HTTP ${res.status}`); continue; }
+    const parsed = extractJson(await res.json());
+    if (!inRange(parsed?.score, 0, 10)) { attempts.push(`${model}: unusable`); continue; }
+    return { score: Math.round(parsed.score), model, attempts };
+  } catch (e) {
+    attempts.push(`${model}: ${e.message}`); // sandbox now refuses every later request
+    return { failed: true, attempts };
+  }
+}
+return { failed: true, attempts };
+```
+
+A model that replies with something unusable (a 429, no JSON, a score out of range) proves the connection works, so the next model is worth trying. A model that throws means the sandbox will refuse everything after it, so the loop stops and records why. Hence fastest first, not strongest first: a slow model takes the whole chain down with it.
+
+### Writes that cannot trip
+
+Every write goes through one helper that skips missing fields, coerces values by field type, writes select options by ID, and logs and skips unknown choices, so one bad value cannot take down the run.
+
+### Duplicates and the email loop
+
+The same person often applies twice. Duplicates share one score: an existing score is copied without a model call, because a second AI pass can land a point either way. The copy is a no-op when the number already matches, so a back-fill cannot ping-pong between twins.
+
+Status taught me that a trigger field is an API. The script wrote Scored on both saves and a re-score wrote it again, and Make emails whenever a record becomes Scored, so one caregiver could get the same email three to five times. Status now moves only from blank or New Lead, once.
+
+## LLM specifics
+
+**Models.** Through OpenRouter: `openai/gpt-4.1-mini` first, because it has no hidden reasoning step and answers in a second or two, then `google/gemini-3.5-flash-lite` and `anthropic/claude-haiku-5.5`. Three vendors, so one outage cannot take out the chain, and all support `response_format`. A call is about 3k tokens in and 150 out, roughly $0.0015 per caregiver at the first model's listed price.
+
+**Why not free models.** By 29 September two of the three free models had been withdrawn (HTTP 404) and the third returned no JSON, so every score was the rubric alone, labelled "rubric (AI unavailable)". On 9 October I moved to paid models and raised `max_tokens` from 500 to 1,500, because a reasoning model can spend its whole budget thinking.
+
+**Prompt.** The rubric as a table, the candidate's track, and rules: structured fields are authoritative for their own line (no CPR point because the free text mentions first aid); free text may earn the newborn and infant-skill points; "Not assessed" means no evidence, not a no; never invent a qualification.
+
+**Structured output.** `response_format: json_object` returning a score, short reasoning and anything credited beyond the fields. A parser takes the last balanced JSON object as a backstop, and a score outside 0–10 is a failed attempt. Temperature 0, reasoning effort low.
+
+**Guardrails.** When the AI scores higher, the note says how many points it found beyond the fields and asks the recruiter to check. Every skipped model, and why, is listed on the record.
+
+**Testing.** There is no labelled evaluation set for the AI half yet; the failure paths were exercised by real outages. The newborn keywords were checked against 20 real applications, where general childcare words had promoted people whose only signal was "daycare". The production script was verified byte-identical to the repository by SHA-256.
+
+{/* VERIFY: add a rubric-vs-AI agreement rate or a hand-labelled sample if one is ever run. */}
+
+## Results
+
+<Callout type="lesson" title="Order beats error handling">In Airtable's sandbox, a caught exception still poisons the rest of the run, so no try/catch can save a write that comes after a failed fetch. The fix was to write the safe answer before asking the risky question.</Callout>
+
+- **By construction:** the AI cannot lower or block a score, a model failure costs only the second opinion, duplicates carry one number, and Status moves once.
+- **Graceful degradation, tested by reality.** For at least ten days the free models were gone, and the script kept writing complete rubric scores with the reason on each record.
+- **Live since 1 October.** On 7 October the first job-board caregiver through the full production flow was scored 9/10 and emailed the application form automatically.
+
+{/* VERIFY: caregivers scored since go-live; how often the AI raised a score; recruiter screening time saved. Also confirm the paid-model chain has been pasted into both production automations and the OpenRouter account has credit (not yet live as of 9 Oct). */}
+
+## What I'd do differently
+
+- **Pay for models from day one.** The free tier saved fractions of a cent per caregiver and cost two runs that scored nobody plus at least ten days of rubric-only scores.
+- **Store both scores in their own fields.** They live in a text note, so measuring how often the AI raises a score needs parsing.
+- **Close the deploy gap.** Script steps are pasted by hand, so the repository and live automations can drift.
+
+## Stack
+
+An Airtable automation script in plain JavaScript, calling three models through OpenRouter; an Airtable interface extension and a Cloudflare Worker for intake; Make.com for the emails.
