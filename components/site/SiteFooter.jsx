@@ -5,7 +5,7 @@ import { site } from "@/lib/site";
 export function FooterLinks() {
   return (
     <nav className="foot-links" aria-label="Footer">
-      <Link href="/work">Work</Link>
+      <Link href="/work">Case studies</Link>
       <a href="/#scenes">How I work</a>
       <a href="/#contact">Contact</a>
       <a href={site.resume}>Resume</a>

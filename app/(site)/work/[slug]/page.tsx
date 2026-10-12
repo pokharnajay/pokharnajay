@@ -74,7 +74,7 @@ export default async function CaseStudyPage({ params }: { params: { slug: string
     inLanguage: "en",
   };
   const crumbs = breadcrumbSchema([
-    { name: "Work", path: "/work" },
+    { name: "Case studies", path: "/work" },
     { name: category, path: `/work?category=${c.category}` },
     { name: c.title, path: `/work/${c.slug}` },
   ]);
@@ -87,7 +87,7 @@ export default async function CaseStudyPage({ params }: { params: { slug: string
       <header className="cs-header">
         <nav className="breadcrumb" aria-label="Breadcrumb">
           <ol>
-            <li><Link href="/work">Work</Link></li>
+            <li><Link href="/work">Case studies</Link></li>
             <li><Link href={`/work?category=${c.category}`}>{category}</Link></li>
             <li aria-current="page"><span>{c.title}</span></li>
           </ol>

@@ -75,7 +75,7 @@ export default function Topbar() {
         <span className="brand-name">{site.name}</span>
       </a>
       <nav aria-label="Primary">
-        <Link href="/work" aria-current={isWork ? "page" : undefined}>Work</Link>
+        <Link href="/work" aria-current={isWork ? "page" : undefined}>Case studies</Link>
         <a href="/#scenes" className="nav-how">How I work</a>
         <a href="/#tools" className="nav-stack">Stack</a>
         <a href="/#contact">Contact</a>

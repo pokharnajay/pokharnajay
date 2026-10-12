@@ -49,7 +49,7 @@ export default function WorkPage() {
 
   return (
     <main id="main" className="work-page">
-      <JsonLd data={[collection, breadcrumbSchema([{ name: "Home", path: "/" }, { name: "Work", path: "/work" }])]} />
+      <JsonLd data={[collection, breadcrumbSchema([{ name: "Home", path: "/" }, { name: "Case studies", path: "/work" }])]} />
 
       <header className="work-hero">
         <div className="eyebrow">
