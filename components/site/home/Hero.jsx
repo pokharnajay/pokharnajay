@@ -1,85 +1,75 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { site } from "@/lib/site";
+import { GRAPH_EDGES, GRAPH_NODES, nodePosition, ringIndex } from "./graphModel";
 
-/* Static wireframe globe (SVG) — the server-rendered default, and the only
-   visual on phones, low-power devices and with reduced motion. Desktop swaps
-   in the live three.js scene once the page is idle. */
-const PHI = (1 + Math.sqrt(5)) / 2;
-const ICO = [
-  [0, 1, PHI], [0, -1, PHI], [0, 1, -PHI], [0, -1, -PHI],
-  [1, PHI, 0], [-1, PHI, 0], [1, -PHI, 0], [-1, -PHI, 0],
-  [PHI, 0, 1], [-PHI, 0, 1], [PHI, 0, -1], [-PHI, 0, -1],
-];
-const rot = ([x, y, z]) => {
-  const a = 0.5, b = 0.35;
-  const x1 = x * Math.cos(a) + z * Math.sin(a);
-  const z1 = -x * Math.sin(a) + z * Math.cos(a);
-  const y2 = y * Math.cos(b) - z1 * Math.sin(b);
-  return [x1, y2];
-};
-const P = ICO.map(rot).map(([x, y]) => [100 + x * 38, 100 + y * 38]);
-const EDGES = [];
-for (let i = 0; i < ICO.length; i++)
-  for (let j = i + 1; j < ICO.length; j++) {
-    const d = Math.hypot(ICO[i][0] - ICO[j][0], ICO[i][1] - ICO[j][1], ICO[i][2] - ICO[j][2]);
-    if (Math.abs(d - 2) < 0.01) EDGES.push([i, j]);
-  }
-let seed = 7;
-const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-const DOTS = Array.from({ length: 70 }, () => {
-  const ang = rnd() * Math.PI * 2;
-  const r = 60 + rnd() * 38;
-  return [100 + Math.cos(ang) * r * 1.0, 100 + Math.sin(ang) * r * 0.62, 0.3 + rnd() * 0.7];
-});
+/* Static projection of the agent graph: the server-rendered default and the
+   only version on phones, low-power devices and with reduced motion. */
+const { counts, index } = ringIndex();
+const ROT_Y = 0.55;
+const ROT_X = 0.18;
+function project([x, y, z]) {
+  const cx = x * Math.cos(ROT_Y) + z * Math.sin(ROT_Y);
+  const cz = -x * Math.sin(ROT_Y) + z * Math.cos(ROT_Y);
+  const cy = y * Math.cos(ROT_X) - cz * Math.sin(ROT_X);
+  const zz = y * Math.sin(ROT_X) + cz * Math.cos(ROT_X);
+  const s = 14 / (14 - zz);
+  return { x: 260 + cx * 46 * s, y: 250 - cy * 46 * s, s, z: zz };
+}
+const P = Object.fromEntries(GRAPH_NODES.map((n) => [n.id, project(nodePosition(n, index[n.id], counts[n.ring], 0))]));
 
-function HeroStatic() {
+function GraphStatic() {
   return (
-    <svg className="hero-static" viewBox="0 0 200 200" aria-hidden="true" focusable="false">
+    <svg className="graph-static" viewBox="-30 40 620 430" aria-hidden="true" focusable="false">
       <defs>
-        <radialGradient id="heroGlow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#a3ff12" stopOpacity="0.16" />
-          <stop offset="100%" stopColor="#a3ff12" stopOpacity="0" />
+        <radialGradient id="gHalo" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#12b76a" stopOpacity="0.28" />
+          <stop offset="100%" stopColor="#12b76a" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="gCore" cx="38%" cy="32%" r="70%">
+          <stop offset="0%" stopColor="#5fe0a1" />
+          <stop offset="100%" stopColor="#087443" />
         </radialGradient>
       </defs>
-      <circle cx="100" cy="100" r="96" fill="url(#heroGlow)" />
-      {DOTS.map(([x, y, o], i) => (
-        <circle key={i} cx={x.toFixed(1)} cy={y.toFixed(1)} r="0.7" fill="#a3ff12" opacity={(o * 0.7).toFixed(2)} />
-      ))}
-      {EDGES.map(([a, b], i) => (
-        <line
-          key={i}
-          x1={P[a][0].toFixed(1)}
-          y1={P[a][1].toFixed(1)}
-          x2={P[b][0].toFixed(1)}
-          y2={P[b][1].toFixed(1)}
-          stroke="#a3ff12"
-          strokeWidth="0.35"
-          opacity="0.45"
-        />
-      ))}
+      <ellipse cx="260" cy="250" rx="118" ry="44" fill="none" stroke="#dbe4df" />
+      <ellipse cx="260" cy="250" rx="210" ry="74" fill="none" stroke="#e3eae6" />
+      {GRAPH_EDGES.map(([a, b]) => {
+        const A = P[a], B = P[b];
+        const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2 - 22;
+        return <path key={a + b} d={`M${A.x} ${A.y} Q${mx} ${my} ${B.x} ${B.y}`} fill="none" stroke="#b4c4ba" strokeWidth="1.2" className="g-edge" />;
+      })}
+      <circle cx="260" cy="250" r="104" fill="url(#gHalo)" />
+      <circle cx="260" cy="250" r="30" fill="url(#gCore)" />
+      {GRAPH_NODES.filter((n) => n.ring > 0).map((n) => {
+        const p = P[n.id];
+        return (
+          <g key={n.id}>
+            <circle cx={p.x} cy={p.y} r={(n.ring === 1 ? 8 : 6) * p.s} fill={n.ring === 1 ? "#087443" : "#0d1b14"} />
+            <text x={p.x + 12} y={p.y + 4} className="g-static-label">{n.label}</text>
+          </g>
+        );
+      })}
+      <text x="260" y="306" textAnchor="middle" className="g-static-label is-core">LLM agent</text>
     </svg>
   );
 }
 
 export default function Hero() {
   const canvasRef = useRef(null);
-  const anchorRef = useRef(null);
+  const labelRef = useRef(null);
   const [live, setLive] = useState(false);
 
   useEffect(() => {
-    const desktop = window.matchMedia("(min-width: 900px) and (hover: hover) and (pointer: fine)").matches;
+    const desktop = window.matchMedia("(min-width: 960px) and (hover: hover) and (pointer: fine)").matches;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const conn = navigator.connection;
-    const lowPower =
-      (conn && conn.saveData) || (navigator.hardwareConcurrency || 8) <= 2 || (navigator.deviceMemory || 8) <= 2;
+    const lowPower = (conn && conn.saveData) || (navigator.hardwareConcurrency || 8) <= 2 || (navigator.deviceMemory || 8) <= 2;
     if (!desktop || reduce || lowPower) return;
-
     let dispose = null;
     let cancelled = false;
-    const boot = () => {
-      import("./heroCanvas")
-        .then(({ initHeroCanvas }) => initHeroCanvas(canvasRef.current, anchorRef.current))
+    const boot = () =>
+      import("./heroGraph")
+        .then(({ initHeroGraph }) => initHeroGraph(canvasRef.current, labelRef.current))
         .then((d) => {
           if (cancelled) d();
           else {
@@ -88,9 +78,8 @@ export default function Hero() {
           }
         })
         .catch(() => {});
-    };
     const ric = window.requestIdleCallback;
-    const handle = ric ? ric(boot, { timeout: 2500 }) : setTimeout(boot, 800);
+    const handle = ric ? ric(boot, { timeout: 1800 }) : setTimeout(boot, 600);
     return () => {
       cancelled = true;
       if (ric) window.cancelIdleCallback(handle);
@@ -101,36 +90,33 @@ export default function Hero() {
 
   return (
     <section className="hero" id="top">
-      <div className={"hero-canvas" + (live ? " is-live" : "")} ref={canvasRef} aria-hidden="true">
-        <HeroStatic />
-      </div>
-      <div className="hero-vignette" aria-hidden="true"></div>
-      <div className="hero-inner">
-        <p className="hero-tag">{site.jobTitle} / LLM agents · RAG · automation</p>
-
-        <div className="hero-mid">
-          <h1 className="hero-headline">
-            <span className="row"><span style={{ "--i": 0 }}>AI &amp; Automation</span></span>
-            <span className="row"><span style={{ "--i": 1 }} className="outline" ref={anchorRef}>that runs</span></span>
-            <span className="row"><span style={{ "--i": 2 }}>in <span className="accent">production.</span></span></span>
+      <div className="wrap hero-grid">
+        <div className="hero-copy">
+          <p className="hero-hello">
+            <span className="dot-live" aria-hidden="true"></span>
+            {site.name}, AI engineer in {site.location.city}
+          </p>
+          <h1 className="h-display hero-title">
+            {"AI agents and automations that hold up in production.".split(" ").map((w, i) => (
+              <Fragment key={i}>
+                <span className="w" style={{ "--i": i }}><span>{w}</span></span>{" "}
+              </Fragment>
+            ))}
           </h1>
+          <p className="lead hero-lead">
+            I build LLM agents, RAG systems and document pipelines, then wire them into real operations with n8n, Make.com and custom code. I&rsquo;ve contributed to 3,000+ automations for 70+ clients in the US, UK and Europe.
+          </p>
+          <div className="hero-actions">
+            <a href="/work" className="btn btn-primary">See case studies</a>
+            <a href={site.resume} className="btn btn-ghost">Download resume</a>
+          </div>
+          <p className="hero-note">Open to full-time remote AI engineering roles and select projects.</p>
         </div>
 
-        <div className="hero-bottom">
-          <p className="hero-bio">
-            <strong>Jay Pokharna.</strong> {site.jobTitle} at <strong>{site.employer.name}</strong>. I build AI agents and the automation systems around them — half code, half visual platforms, all production-grade.
-          </p>
-          <dl className="hero-stats">
-            <div className="stat"><dt>Automations contributed to</dt><dd className="v accent">3,000+</dd></div>
-            <div className="stat"><dt>Clients served</dt><dd className="v">70+</dd></div>
-            <div className="stat"><dt>Focus</dt><dd className="v">Agents · RAG</dd></div>
-            <div className="stat"><dt>Based</dt><dd className="v">{site.location.label}</dd></div>
-          </dl>
-          <div className="hero-cta-wrap">
-            <a href="#contact" className="btn primary">Start a project <span className="arrow" aria-hidden="true">↗</span></a>
-            <a href="#scenes" className="btn">See how I work</a>
-            <a href={site.resume} className="hero-resume">Hiring? View my resume <span aria-hidden="true">→</span></a>
-          </div>
+        <div className={"hero-visual" + (live ? " is-live" : "")} aria-hidden="true">
+          <GraphStatic />
+          <div className="hero-canvas" ref={canvasRef}></div>
+          <div className="hero-labels" ref={labelRef}></div>
         </div>
       </div>
     </section>

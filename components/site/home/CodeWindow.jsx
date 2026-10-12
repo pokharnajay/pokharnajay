@@ -1,11 +1,10 @@
 "use client";
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useReducedMotion, useSceneActive } from "@/lib/motion";
 
-/* Scene 02 — a typewriter code editor. Ten real-world snippets rotate at
-   random; typing pauses whenever the scene is off-screen. With reduced
-   motion the first snippet is shown complete and nothing rotates. */
+/* A typewriter code window. Ten real-world snippets rotate at random;
+   typing pauses whenever it is off-screen. With reduced motion the first
+   snippet is shown complete and nothing rotates. */
 /* 10-snippet rotation for the SceneCode typewriter. Each snippet types out
    character-by-character then waits 5s before the next one is picked at random. */
 const CODE_SNIPPETS = [
@@ -196,7 +195,7 @@ const SNIPPETS_TOKENIZED = CODE_SNIPPETS.map((s) => {
 });
 const MAX_LINES = SNIPPETS_TOKENIZED.reduce((m, s) => Math.max(m, s.lines.length), 0);
 
-export default function SceneCode() {
+export default function CodeWindow() {
   const rootRef = useRef(null);
   const reduced = useReducedMotion();
   const active = useSceneActive(rootRef);
@@ -254,56 +253,28 @@ export default function SceneCode() {
   }
 
   return (
-    <div className="scene" data-scene="1" id="scene-code">
-      <div className="scene-text">
-        <div className="eyebrow"><span className="dot" aria-hidden="true"></span> Scene 02 / Custom code</div>
-        <h2 className="scene-h">Code, <em>where it counts</em>.</h2>
-        <p className="scene-body">
-          Loops, conditional branching, hundreds of records, audit-traceable retries, APIs without polished connectors. <strong>JavaScript, TypeScript, Node.js, Python</strong> — Airtable scripts, custom webhooks, scheduled jobs that don&rsquo;t time out and explain their own failures.
-        </p>
-        <div className="scene-meta">
-          <span className="chip hot">TypeScript</span>
-          <span className="chip">Node.js</span>
-          <span className="chip">Python</span>
-          <span className="chip">Airtable JS</span>
-          <span className="chip">Cloudflare Workers</span>
+    <div className="code-window" ref={rootRef}>
+      <div
+        className="codeblock"
+        role="img"
+        aria-label={`Code editor typing ${snippet.file.replace("~/", "")}, one of ten production snippets: payment reconciliation, webhook retries, LLM output guardrails, rate limiting and more.`}
+      >
+        <div className="head" aria-hidden="true">
+          <div className="dots"><span></span><span></span><span></span></div>
+          <div className="file">{snippet.file}</div>
         </div>
-        <Link href="/work/airtable-interface-extensions-react" className="scene-link">
-          See a real example <span aria-hidden="true">→</span>
-        </Link>
-      </div>
-
-      <div className="scene-visual" ref={rootRef}>
-        <div
-          className="codeblock"
-          role="img"
-          aria-label={`Code editor typing ${snippet.file.replace("~/", "")}, one of ten production snippets: payment reconciliation, webhook retries, LLM output guardrails, rate limiting and more.`}
-        >
-          <div className="head" aria-hidden="true">
-            <div className="dots"><span></span><span></span><span></span></div>
-            <div className="file">{snippet.file}</div>
+        <div className="body" aria-hidden="true">
+          <div className="gutter">
+            {Array.from({ length: MAX_LINES }, (_, i) => (
+              <span key={i}>{i < snippet.lines.length ? i + 1 : ""}</span>
+            ))}
           </div>
-          <div className="body" aria-hidden="true">
-            <div className="gutter">
-              {Array.from({ length: MAX_LINES }, (_, i) => (
-                <span key={i}>{i < snippet.lines.length ? i + 1 : ""}</span>
-              ))}
-            </div>
-            <div className="code">
-              {lineNodes}
-              {/* fill remaining lines with empty so codeblock height stays stable */}
-              {Array.from({ length: Math.max(0, MAX_LINES - snippet.lines.length) }, (_, i) => (
-                <span key={`pad-${i}`} className="line"><span>&nbsp;</span></span>
-              ))}
-            </div>
+          <div className="code">
+            {lineNodes}
+            {Array.from({ length: Math.max(0, MAX_LINES - snippet.lines.length) }, (_, i) => (
+              <span key={`pad-${i}`} className="line"><span>&nbsp;</span></span>
+            ))}
           </div>
-        </div>
-
-        <div className="codeblock-orbit" aria-hidden="true">
-          <span className="chip" style={{ top: "8%", right: "4%" }}>Stripe API ✓</span>
-          <span className="chip" style={{ top: "20%", left: "-2%" }}>Webhook recv</span>
-          <span className="chip" style={{ bottom: "16%", right: "-2%" }}>Idempotent</span>
-          <span className="chip" style={{ bottom: "4%", left: "8%" }}>Schema-validated</span>
         </div>
       </div>
     </div>

@@ -3,9 +3,11 @@ import Link from "next/link";
 import { createRef, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useReducedMotion, useSceneActive } from "@/lib/motion";
 
-/* Scene 01 — an animated "agent run": query → plan → retrieve → tool calls →
-   grounded answer. Everything on screen is a pure function of one clock (t,
-   in ms), so pausing, looping and the reduced-motion final state are trivial. */
+/* The agent-run demo: query → plan → retrieve → tool calls → grounded
+   answer, in a terminal-style panel. Everything on screen is a pure function
+   of one clock (t, in ms), so pausing off-screen, looping and the
+   reduced-motion final state are trivial. The phase list beside it follows
+   the same clock. */
 
 const QUERY = "Which leads from last week haven't been followed up?";
 const ANSWER =
@@ -108,7 +110,15 @@ function useConnectors(bodyRef, refs) {
   return paths;
 }
 
-export default function SceneAgents() {
+
+const PHASES = [
+  { name: "Plan", text: "Breaks the request into steps before it touches anything.", at: TRACE[0].at },
+  { name: "Retrieve", text: "Pulls the policies and records that matter, with sources it can cite.", at: TRACE[1].at },
+  { name: "Act", text: "Calls your CRM, email and Slack through typed, validated functions.", at: [TOOLS[0].at[0], TOOLS[1].at[1]] },
+  { name: "Answer", text: "Says what it did and why, and hands off to a person when unsure.", at: TRACE[4].at },
+];
+
+export default function AgentDemo() {
   const rootRef = useRef(null);
   const bodyRef = useRef(null);
   const refs = useRef(null);
@@ -129,35 +139,39 @@ export default function SceneAgents() {
   const edge = (from) => (t < from ? "" : " on");
   const flow = (range) => (stateOf(t, range) === "run" ? " flow" : "");
 
-  return (
-    <div className="scene scene--agents" data-scene="0" id="scene-agents">
-      <div className="scene-text">
-        <div className="eyebrow"><span className="dot" aria-hidden="true"></span> Scene 01 / AI agents</div>
-        <h2 className="scene-h">LLMs, put to <em>work</em>.</h2>
-        <p className="scene-body">
-          LLM agents that read your docs, call your tools, and take real actions — not demos. <strong>Retrieval-augmented answers</strong> grounded in your data, <strong>tool calling with guardrails</strong>, and evals so behaviour stays predictable in production.
-        </p>
-        <div className="scene-meta">
-          <span className="chip hot">RAG</span>
-          <span className="chip">LLM APIs</span>
-          <span className="chip">Function calling</span>
-          <span className="chip">Structured outputs</span>
-          <span className="chip">Vector search</span>
-          <span className="chip">Python</span>
-        </div>
-        <Link href="/work/ai-lead-scoring-airtable" className="scene-link">
-          See a real example <span aria-hidden="true">→</span>
-        </Link>
-      </div>
 
-      <div className="scene-visual">
+  return (
+    <section className="band-dark agents" id="agents" aria-labelledby="agents-title">
+      <div className="wrap agents-grid">
+        <div className="agents-copy">
+          <h2 className="h-section" id="agents-title">Agents that read, decide and act.</h2>
+          <p className="lead">
+            An agent is only useful when it&rsquo;s grounded in your data and can safely touch your systems. This is the shape of the ones I ship: retrieval for context, tool calls with guardrails, and evals that keep behaviour predictable.
+          </p>
+          <ol className="phases">
+            {PHASES.map((p, i) => {
+              const st = reduced ? "done" : stateOf(t, p.at);
+              return (
+                <li key={p.name} className={"phase st-" + st}>
+                  <span className="phase-n">{i + 1}</span>
+                  <div>
+                    <div className="phase-name">{p.name}</div>
+                    <div className="phase-text">{p.text}</div>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+          <Link href="/work/ai-lead-scoring-airtable" className="text-link text-link-light">Read how I built AI lead scoring</Link>
+        </div>
+
         <div
           className="agent-run"
           ref={rootRef}
           role="img"
           aria-label="Animated example of an AI agent run: a question about stale leads is planned, three policy documents are retrieved with similarity scores, the agent calls crm.search and email.draft, then streams a grounded answer."
         >
-          <div className="ar-window" aria-hidden="true">
+<div className="ar-window" aria-hidden="true">
             <div className="ar-head">
               <div className="dots"><span></span><span></span><span></span></div>
               <div className="ar-file">agent.run — lead-followup</div>
@@ -254,15 +268,8 @@ export default function SceneAgents() {
               </div>
             </div>
           </div>
-
-          <div className="ar-orbit" aria-hidden="true">
-            <span className="chip hot" style={{ top: "-3%", right: "6%" }}>grounded in your data</span>
-            <span className="chip" style={{ top: "30%", right: "-4%" }}>tool calling</span>
-            <span className="chip" style={{ bottom: "24%", left: "-5%" }}>guardrails</span>
-            <span className="chip" style={{ bottom: "-3%", right: "18%" }}>evals</span>
-          </div>
         </div>
       </div>
-    </div>
+    </section>
   );
 }

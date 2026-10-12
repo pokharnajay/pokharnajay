@@ -3,16 +3,10 @@ import { useEffect } from "react";
 import { useReveal } from "@/lib/motion";
 
 /* Homepage-only behaviour: Lenis smooth scroll (desktop, motion allowed),
-   smooth in-page anchor routing, scroll reveals, and remembering that the
-   intro veil has been seen so repeat visits skip it. */
+   smooth in-page anchor routing that clears the sticky nav, and scroll
+   reveals. */
 export default function HomeEffects() {
   useReveal();
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("jp:intro", "1");
-    } catch {}
-  }, []);
 
   useEffect(() => {
     const fine = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
@@ -47,7 +41,7 @@ export default function HomeEffects() {
       const tgt = id ? document.getElementById(id) : null;
       if (!tgt) return;
       e.preventDefault();
-      if (window.__lenis) window.__lenis.scrollTo(tgt, { offset: 0 });
+      if (window.__lenis) window.__lenis.scrollTo(tgt, { offset: -72 });
       else tgt.scrollIntoView({ behavior: reduce ? "auto" : "smooth" });
       history.replaceState(null, "", `#${id}`);
       // Move focus for keyboard and screen-reader users.
