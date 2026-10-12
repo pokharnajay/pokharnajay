@@ -1,12 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Space_Grotesk, Inter_Tight, JetBrains_Mono } from "next/font/google";
+import { Instrument_Sans, JetBrains_Mono } from "next/font/google";
 import { SITE_URL, IS_INDEXABLE, site } from "@/lib/site";
 
 /* Self-hosted via next/font: no render-blocking Google Fonts request, and
    size-adjusted fallbacks keep layout shift near zero while fonts swap in. */
-const display = Space_Grotesk({ subsets: ["latin"], display: "swap", variable: "--font-display" });
-const sans = Inter_Tight({ subsets: ["latin"], display: "swap", variable: "--font-sans" });
-const mono = JetBrains_Mono({ subsets: ["latin"], display: "swap", variable: "--font-mono" });
+/* One family for everything (Instrument Sans, variable width + weight:
+   condensed for headlines, normal for reading). Mono only for code. */
+const sans = Instrument_Sans({ subsets: ["latin"], display: "swap", variable: "--font-sans", axes: ["wdth"] });
+const mono = JetBrains_Mono({ subsets: ["latin"], display: "swap", variable: "--font-mono", preload: false });
 
 /* Search-console verification tags render only when the env var is set. */
 const verification: Metadata["verification"] = {};
@@ -65,8 +66,8 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#07080a",
-  colorScheme: "dark",
+  themeColor: "#ffffff",
+  colorScheme: "light",
   width: "device-width",
   initialScale: 1,
 };
@@ -75,7 +76,7 @@ const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
+    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
       <body>
         {children}
         {GA_ID ? (

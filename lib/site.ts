@@ -38,7 +38,7 @@ export const site = {
     country: "India",
     countryCode: "IN",
     label: "Pune · IST",
-    long: "Pune, India · IST (UTC+5:30)",
+    long: "Pune, India (IST, UTC+5:30)",
   },
 
   employer: { name: "Etherwise", url: "https://etherwise.io/" },
