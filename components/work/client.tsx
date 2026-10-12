@@ -163,7 +163,7 @@ export function WorkFilters({ categories }: { categories: { key: string; label: 
     });
     const empty = document.querySelector<HTMLElement>("[data-grid-empty]");
     if (empty) {
-      const anyVisible = Array.from(document.querySelectorAll<HTMLElement>(".case-grid [data-category]")).some((el) => !el.hidden);
+      const anyVisible = Array.from(document.querySelectorAll<HTMLElement>(".case-list [data-category]")).some((el) => !el.hidden);
       empty.hidden = anyVisible;
     }
   }, [active]);
@@ -178,7 +178,7 @@ export function WorkFilters({ categories }: { categories: { key: string; label: 
   return (
     <nav className="work-filters" aria-label="Filter case studies">
       <a href="/work" className={"filter-chip" + (active === "all" ? " is-active" : "")} aria-current={active === "all" ? "true" : undefined} onClick={pick("all")}>
-        All <span className="count">{String(all).padStart(2, "0")}</span>
+        All <span className="count">{all}</span>
       </a>
       {categories.map((c) => (
         <a
@@ -188,7 +188,7 @@ export function WorkFilters({ categories }: { categories: { key: string; label: 
           aria-current={active === c.key ? "true" : undefined}
           onClick={pick(c.key)}
         >
-          {c.label} <span className="count">{String(c.count).padStart(2, "0")}</span>
+          {c.label} <span className="count">{c.count}</span>
         </a>
       ))}
     </nav>

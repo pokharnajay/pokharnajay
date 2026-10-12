@@ -14,10 +14,10 @@ export default function Image({ params }: { params: { slug: string } }) {
   if (!c) return renderOg({ eyebrow: "Case study", title: "Jay Pokharna" });
   const m = c.metrics[0];
   return renderOg({
-    eyebrow: `Case study · ${CATEGORIES[c.category]}`,
+    eyebrow: `Case study: ${CATEGORIES[c.category]}`,
     title: c.title,
     metric: m?.value,
     metricLabel: m?.label,
-    footer: c.stack.slice(0, 3).join(" · "),
+    footer: c.stack.slice(0, 3).join(", "),
   });
 }

@@ -1,44 +1,82 @@
 import Link from "next/link";
 import { site } from "@/lib/site";
-import { CATEGORIES, formatMonth, pad2, type CaseStudy } from "@/lib/work";
+import { CATEGORIES, formatMonth, type CaseStudy } from "@/lib/work";
+import Diagram from "./Diagram";
+import Tilt from "./Tilt";
 import { CountUp } from "./client";
 
-export function CategoryLabel({ c }: { c: Pick<CaseStudy, "category"> }) {
-  return <>{CATEGORIES[c.category]}</>;
+export const Arrow = () => (
+  <svg className="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M3 8h10M9 4l4 4-4 4" />
+  </svg>
+);
+
+/* One case study as a list row: a single real link (the title) stretched
+   over the row, so it's one tab stop. */
+export function CaseRow({ c, headingLevel = "h3" }: { c: CaseStudy; headingLevel?: "h2" | "h3" }) {
+  const H = headingLevel;
+  const m = c.metrics[0];
+  return (
+    <article className="case-row" data-category={c.category} data-reveal>
+      <div className="case-row-meta">
+        <span className={"tag" + (c.category === "ai-agents" ? " is-green" : "")}>{CATEGORIES[c.category]}</span>
+        <span className="case-row-date">{formatMonth(c.date)}</span>
+        {c.draft ? <span className="draft-badge">Draft</span> : null}
+      </div>
+      <div className="case-row-main">
+        <H className="case-row-title">
+          <Link href={`/work/${c.slug}`} className="stretched">{c.title}</Link>
+        </H>
+        <p className="case-row-client">{c.clientType}</p>
+      </div>
+      {m ? (
+        <div className="case-row-metric">
+          <span className="v">{m.value}</span>
+          <span className="k">{m.label}</span>
+        </div>
+      ) : <span />}
+      <span className="case-row-arrow" aria-hidden="true"><Arrow /></span>
+    </article>
+  );
 }
 
-/* Card used in the /work grid and the related list. One real link (the
-   title) stretched over the whole card, so it is a single tab stop. */
-export function CaseCard({ c, headingLevel = "h2" }: { c: CaseStudy; headingLevel?: "h2" | "h3" }) {
+/* Featured case study: copy + metrics, and its architecture as a tilting
+   3D card. */
+export function FeaturedCase({ c, headingLevel = "h3" }: { c: CaseStudy; headingLevel?: "h2" | "h3" }) {
   const H = headingLevel;
-  const metric = c.metrics[0];
   return (
-    <article className="case-card" data-category={c.category} data-reveal>
-      <div className="case-card-top">
-        <span className="case-num">{pad2(c.number)}</span>
-        <span className="case-eyebrow">
-          <CategoryLabel c={c} /> · {formatMonth(c.date)}
-          {c.draft ? <span className="draft-badge">Draft</span> : null}
-        </span>
-      </div>
-      <H className="case-title">
-        <Link href={`/work/${c.slug}`} className="stretched">
-          {c.title}
-        </Link>
-      </H>
-      <p className="case-client">{c.clientType}</p>
-      {metric ? (
-        <div className="case-metric">
-          <span className="v">{metric.value}</span>
-          <span className="k">{metric.label}</span>
+    <article className="featured" data-category={c.category} data-reveal>
+      <div className="featured-copy">
+        <div className="case-row-meta">
+          <span className="tag is-green">Featured</span>
+          <span className="tag">{CATEGORIES[c.category]}</span>
+          <span className="case-row-date">{formatMonth(c.date)}</span>
         </div>
+        <H className="featured-title">
+          <Link href={`/work/${c.slug}`}>{c.title}</Link>
+        </H>
+        <p className="featured-summary">{c.summary}</p>
+        {c.metrics.length ? (
+          <dl className="featured-metrics">
+            {c.metrics.map((m) => (
+              <div key={m.label}>
+                <dt>{m.label}</dt>
+                <dd>{m.value}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
+        <Link href={`/work/${c.slug}`} className="btn btn-primary featured-cta" tabIndex={-1} aria-hidden="true">
+          Read the case study <Arrow />
+        </Link>
+      </div>
+      {c.diagram ? (
+        <Tilt className="featured-visual">
+          <div aria-hidden="true">
+            <Diagram data={c.diagram} id={`featured-${c.slug}`} compact />
+          </div>
+        </Tilt>
       ) : null}
-      <ul className="case-stack" aria-label="Stack">
-        {c.stack.slice(0, 4).map((s) => (
-          <li key={s} className="chip">{s}</li>
-        ))}
-      </ul>
-      <span className="case-arrow" aria-hidden="true">→</span>
     </article>
   );
 }
@@ -61,24 +99,13 @@ export function MetricsStrip({ metrics }: { metrics: CaseStudy["metrics"] }) {
 
 export function CtaBand() {
   return (
-    <section className="cta-band" aria-labelledby="cta-title" data-reveal>
+    <section className="cta-band" aria-labelledby="cta-title">
       <div className="cta-inner">
-        <div className="eyebrow">
-          <span className="dot" aria-hidden="true"></span> Next step
-        </div>
-        <h2 id="cta-title" className="cta-title">
-          Hiring for AI engineering, or need something <em>built</em>?
-        </h2>
+        <h2 id="cta-title" className="h-section cta-title">Hiring for AI engineering, or need something built?</h2>
+        <p className="cta-text">Send a short note about the problem. I reply within a business day.</p>
         <div className="cta-actions">
-          <a href={`mailto:${site.email}`} className="btn primary">
-            {site.email} <span className="arrow" aria-hidden="true">↗</span>
-          </a>
-          <a href={site.resume} className="btn">
-            View resume
-          </a>
-          <a href="/#contact" className="btn">
-            All contact options
-          </a>
+          <a href={`mailto:${site.email}`} className="btn btn-light">Email {site.email}</a>
+          <a href={site.resume} className="btn btn-outline-light">Download resume</a>
         </div>
       </div>
     </section>

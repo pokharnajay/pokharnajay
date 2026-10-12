@@ -6,9 +6,9 @@ export const alt = "Writing by Jay Pokharna: notes on LLM agents, RAG and produc
 
 export default function Image() {
   return renderOg({
-    eyebrow: "Writing · notes from production",
-    title: "Notes,",
-    accent: "unpolished.",
-    footer: "LLM agents · RAG · automation",
+    eyebrow: "Writing",
+    title: "Notes from building",
+    accent: "LLM agents and automations.",
+    footer: "LLM agents, RAG and automation",
   });
 }

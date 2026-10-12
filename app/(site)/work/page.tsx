@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import Diagram from "@/components/work/Diagram";
 import { WorkFilters } from "@/components/work/client";
-import { CaseCard, CategoryLabel, CtaBand } from "@/components/work/parts";
+import { CaseRow, CtaBand, FeaturedCase } from "@/components/work/parts";
 import { JsonLd, PERSON_ID, WEBSITE_ID, breadcrumbSchema } from "@/lib/jsonld";
 import { absoluteUrl } from "@/lib/site";
-import { CATEGORIES, formatMonth, getCaseStudies, pad2, type Category } from "@/lib/work";
+import { CATEGORIES, getCaseStudies, type Category } from "@/lib/work";
 
 const TITLE = "Work & Case Studies — AI Agents, RAG & Automation";
 const DESCRIPTION =
@@ -23,7 +21,6 @@ export default function WorkPage() {
   const studies = getCaseStudies();
   const featured = studies.find((c) => c.featured) ?? studies[0];
   const rest = studies.filter((c) => c !== featured);
-  const year = new Date().getFullYear();
   const categories = (Object.keys(CATEGORIES) as Category[])
     .map((key) => ({ key, label: CATEGORIES[key], count: studies.filter((c) => c.category === key).length }))
     .filter((c) => c.count > 0);
@@ -51,73 +48,26 @@ export default function WorkPage() {
     <main id="main" className="work-page">
       <JsonLd data={[collection, breadcrumbSchema([{ name: "Home", path: "/" }, { name: "Case studies", path: "/work" }])]} />
 
-      <header className="work-hero">
-        <div className="eyebrow">
-          <span className="dot" aria-hidden="true"></span> Selected work / {year}
-        </div>
-        <h1 className="work-h1">
-          Things I&rsquo;ve <em>shipped</em>.
-        </h1>
-        <p className="work-intro">
-          LLM agents, document pipelines and production automations for clients across the US, the UK and Europe. Client names withheld under NDA.
-        </p>
-        <p className="work-stats">
-          {pad2(studies.length)} case studies · {categories.map((c) => c.label.toLowerCase()).join(" · ")}
+      <header className="wrap work-hero">
+        <h1 className="h-display work-h1">Case studies</h1>
+        <p className="lead">
+          {studies.length} real builds: LLM agents, document pipelines and production automations for clients in the US, the UK and Europe. Client names are withheld under NDA; every number comes from the project itself.
         </p>
       </header>
 
-      <WorkFilters categories={categories} />
-
-      {featured ? (
-        <article className="featured-case" data-category={featured.category} data-reveal>
-          <div className="featured-copy">
-            <div className="case-card-top">
-              <span className="case-num">{pad2(featured.number)}</span>
-              <span className="case-eyebrow">
-                Featured · <CategoryLabel c={featured} /> · {formatMonth(featured.date)}
-              </span>
-            </div>
-            <h2 className="featured-title">
-              <Link href={`/work/${featured.slug}`}>{featured.title}</Link>
-            </h2>
-            <p className="featured-summary">{featured.summary}</p>
-            {featured.metrics.length ? (
-              <dl className="featured-metrics">
-                {featured.metrics.map((m) => (
-                  <div key={m.label}>
-                    <dt>{m.label}</dt>
-                    <dd>{m.value}</dd>
-                  </div>
-                ))}
-              </dl>
-            ) : null}
-            <ul className="case-stack" aria-label="Stack">
-              {featured.stack.slice(0, 6).map((s) => (
-                <li key={s} className="chip">{s}</li>
-              ))}
-            </ul>
-            <Link href={`/work/${featured.slug}`} className="btn primary featured-cta" aria-hidden="true" tabIndex={-1}>
-              Read case study <span className="arrow">→</span>
-            </Link>
-          </div>
-          {featured.diagram ? (
-            <div className="featured-visual" aria-hidden="true">
-              <Diagram data={featured.diagram} id={`featured-${featured.slug}`} compact />
-            </div>
-          ) : null}
-        </article>
-      ) : null}
-
-      <section className="case-grid" aria-label="All case studies">
-        {rest.map((c) => (
-          <CaseCard key={c.slug} c={c} />
-        ))}
-        <p className="grid-empty" data-grid-empty hidden>
-          The featured case study above is the only one in this category so far.
-        </p>
-      </section>
-
-      <CtaBand />
+      <div className="wrap">
+        <WorkFilters categories={categories} />
+        {featured ? <FeaturedCase c={featured} headingLevel="h2" /> : null}
+        <section className="case-list" aria-label="All case studies">
+          {rest.map((c) => (
+            <CaseRow key={c.slug} c={c} headingLevel="h2" />
+          ))}
+          <p className="grid-empty" data-grid-empty hidden>
+            The featured case study above is the only one in this category so far.
+          </p>
+        </section>
+        <CtaBand />
+      </div>
     </main>
   );
 }

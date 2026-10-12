@@ -8,11 +8,11 @@ export const alt = "Work and case studies by Jay Pokharna: AI agents, RAG and au
 export default function Image() {
   const n = getCaseStudies().length;
   return renderOg({
-    eyebrow: "Selected work · case studies",
-    title: "Things I've",
-    accent: "shipped.",
+    eyebrow: "Case studies",
+    title: "Real builds, anonymised:",
+    accent: "agents, pipelines, automations.",
     metric: String(n).padStart(2, "0"),
     metricLabel: "case studies",
-    footer: "AI agents · code · no-code",
+    footer: "AI agents, code and no-code",
   });
 }

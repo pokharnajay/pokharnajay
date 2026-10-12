@@ -49,24 +49,27 @@ export default async function PostPage({ params }: { params: { slug: string } })
     <main id="main" className="cs-page">
       <JsonLd data={[article, breadcrumbSchema([{ name: "Writing", path: "/writing" }, { name: p.title, path: `/writing/${p.slug}` }])]} />
       <ReadingProgress />
-      <header className="cs-header">
+      <header className="wrap cs-header">
         <nav className="breadcrumb" aria-label="Breadcrumb">
           <ol>
             <li><Link href="/writing">Writing</Link></li>
             <li aria-current="page"><span>{p.title}</span></li>
           </ol>
         </nav>
-        <div className="eyebrow">
-          <span className="dot" aria-hidden="true"></span> {formatMonth(p.date)} · {p.readingTime} min read
+        <div className="case-row-meta">
+          <span className="case-row-date">{formatMonth(p.date)}</span>
+          <span className="case-row-date">{p.readingTime} min read</span>
           {p.draft ? <span className="draft-badge">Draft</span> : null}
         </div>
         <h1 className="cs-h1">{p.title}</h1>
         <p className="cs-summary">{p.summary}</p>
       </header>
-      <div className="cs-layout is-single">
+      <div className="wrap cs-layout is-single">
         <article className="prose" data-article>{content}</article>
       </div>
-      <CtaBand />
+      <div className="wrap">
+        <CtaBand />
+      </div>
     </main>
   );
 }

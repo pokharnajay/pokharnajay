@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import "./(site)/globals.css";
 import "./(site)/article.css";
-import Topbar from "@/components/site/Topbar";
-import CustomCursor from "@/components/site/CustomCursor";
+import Nav from "@/components/site/Nav";
 import SiteFooter from "@/components/site/SiteFooter";
 
 export const metadata: Metadata = {
@@ -16,26 +15,14 @@ export const metadata: Metadata = {
 export default function NotFound() {
   return (
     <>
-      <div className="grain" aria-hidden="true"></div>
-      <div className="scanlines" aria-hidden="true"></div>
-      <CustomCursor />
-      <Topbar />
-      <main id="main" className="nf-page">
-        <div className="eyebrow">
-          <span className="dot" aria-hidden="true"></span> Error 404 / route not found
-        </div>
-        <h1 className="nf-h1">
-          Nothing runs <em>here</em>.
-        </h1>
-        <p className="nf-copy">
-          The page you asked for doesn&rsquo;t exist, or it moved. The automations are fine — this link isn&rsquo;t.
-        </p>
-        <pre className="nf-trace" aria-hidden="true">{`▸ GET  <requested path>
-▸ 404  no matching route
-▸ hint try /work or the homepage`}</pre>
+      <Nav />
+      <main id="main" className="wrap nf-page">
+        <p className="nf-code">404</p>
+        <h1 className="h-display nf-h1">This page doesn&rsquo;t exist.</h1>
+        <p className="lead">The link may be old, or the page moved. The case studies and the homepage are a good place to pick up.</p>
         <div className="nf-actions">
-          <Link href="/" className="btn primary">Back to home <span className="arrow" aria-hidden="true">↗</span></Link>
-          <Link href="/work" className="btn">See the work</Link>
+          <Link href="/work" className="btn btn-primary">See case studies</Link>
+          <Link href="/" className="btn btn-ghost">Go to the homepage</Link>
         </div>
       </main>
       <SiteFooter />

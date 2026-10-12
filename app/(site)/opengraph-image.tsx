@@ -7,9 +7,9 @@ export const contentType = "image/png";
 
 export default function OgImage() {
   return renderOg({
-    eyebrow: "AI Engineer · Pune, India",
-    title: "LLM agents, RAG &",
-    accent: "production automations.",
-    footer: "Python · TypeScript · n8n · Make.com",
+    eyebrow: "AI engineer in Pune, India",
+    title: "AI agents and automations",
+    accent: "that hold up in production.",
+    footer: "LLM agents, RAG, n8n and Make.com",
   });
 }

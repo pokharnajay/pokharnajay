@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CtaBand } from "@/components/work/parts";
+import { Arrow, CtaBand } from "@/components/work/parts";
 import { JsonLd, PERSON_ID, WEBSITE_ID } from "@/lib/jsonld";
 import { absoluteUrl } from "@/lib/site";
 import { formatMonth } from "@/lib/work";
@@ -34,11 +34,11 @@ export default function WritingIndex() {
   return (
     <main id="main" className="work-page">
       <JsonLd data={blog} />
-      <header className="work-hero">
-        <div className="eyebrow"><span className="dot" aria-hidden="true"></span> Writing / notes from production</div>
-        <h1 className="work-h1">Notes, <em>unpolished</em>.</h1>
-        <p className="work-intro">{DESCRIPTION}</p>
+      <header className="wrap work-hero">
+        <h1 className="h-display work-h1">Writing</h1>
+        <p className="lead">{DESCRIPTION}</p>
       </header>
+      <div className="wrap">
 
       {posts.length ? (
         <ol className="post-list">
@@ -52,7 +52,7 @@ export default function WritingIndex() {
                 </h2>
                 <p className="post-summary">{p.summary}</p>
               </div>
-              <span className="case-arrow" aria-hidden="true">→</span>
+              <span className="case-row-arrow" aria-hidden="true"><Arrow /></span>
             </li>
           ))}
         </ol>
@@ -62,6 +62,7 @@ export default function WritingIndex() {
         </p>
       )}
       <CtaBand />
+      </div>
     </main>
   );
 }

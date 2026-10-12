@@ -3,9 +3,9 @@ import path from "node:path";
 import { ImageResponse } from "next/og";
 import { site } from "@/lib/site";
 
-/* Shared 1200×630 Open Graph renderer in the site's style: near-black grid,
-   mono eyebrow, display headline with a lime italic second line, a lime
-   metric and the wordmark. Fonts are vendored in assets/fonts (OFL). */
+/* Shared 1200×630 Open Graph renderer in the site's style: white with a dot
+   grid and a green glow, Instrument Sans headline, jade accent line and
+   metric, and the wordmark. Fonts are vendored in assets/fonts (OFL). */
 
 export const OG_SIZE = { width: 1200, height: 630 };
 
@@ -26,10 +26,9 @@ export async function renderOg({
   metricLabel?: string;
   footer?: string;
 }) {
-  const [display, displayRegular, mono] = await Promise.all([
-    font("SpaceGrotesk-Medium.woff"),
-    font("SpaceGrotesk-Regular.woff"),
-    font("JetBrainsMono-Medium.woff"),
+  const [semibold, regular] = await Promise.all([
+    font("InstrumentSans-SemiBold.woff"),
+    font("InstrumentSans-Regular.woff"),
   ]);
   const long = title.length + (accent?.length ?? 0) > 46;
   const size = long ? 64 : 84;
@@ -42,11 +41,11 @@ export async function renderOg({
           height: "100%",
           display: "flex",
           flexDirection: "column",
-          background: "#07080a",
+          background: "#ffffff",
           padding: "60px 64px",
           position: "relative",
-          color: "#e8ecf2",
-          fontFamily: "Space Grotesk",
+          color: "#0d1b14",
+          fontFamily: "Instrument Sans",
         }}
       >
         <div
@@ -55,9 +54,9 @@ export async function renderOg({
             inset: 0,
             display: "flex",
             backgroundImage:
-              "linear-gradient(#1d2128 1px, transparent 1px), linear-gradient(90deg, #1d2128 1px, transparent 1px)",
-            backgroundSize: "60px 60px",
-            opacity: 0.55,
+              "radial-gradient(rgba(13,27,20,0.12) 1.5px, transparent 1.5px)",
+            backgroundSize: "28px 28px",
+            opacity: 1,
           }}
         />
         <div
@@ -66,7 +65,7 @@ export async function renderOg({
             inset: 0,
             display: "flex",
             background:
-              "radial-gradient(ellipse 70% 60% at 85% 20%, rgba(163,255,18,0.12), transparent 70%), radial-gradient(ellipse at center, transparent 0%, rgba(0,0,0,0.65) 100%)",
+              "radial-gradient(ellipse 60% 70% at 88% 18%, rgba(18,183,106,0.22), transparent 70%), linear-gradient(180deg, rgba(255,255,255,0) 40%, #ffffff 92%)",
           }}
         />
 
@@ -75,9 +74,11 @@ export async function renderOg({
             style={{
               width: 48,
               height: 48,
-              border: "2px solid #a3ff12",
-              color: "#a3ff12",
-              fontSize: 22,
+              borderRadius: 12,
+              background: "#0d1b14",
+              color: "#ffffff",
+              fontSize: 20,
+              fontWeight: 600,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -85,9 +86,7 @@ export async function renderOg({
           >
             JP
           </div>
-          <div style={{ display: "flex", fontFamily: "JetBrains Mono", fontSize: 18, letterSpacing: 4, color: "#e8ecf2" }}>
-            JAY POKHARNA
-          </div>
+          <div style={{ display: "flex", fontSize: 26, fontWeight: 600, color: "#0d1b14" }}>Jay Pokharna</div>
         </div>
 
         <div style={{ flex: 1, display: "flex" }} />
@@ -97,16 +96,13 @@ export async function renderOg({
             display: "flex",
             alignItems: "center",
             gap: 12,
-            fontFamily: "JetBrains Mono",
-            fontSize: 18,
-            letterSpacing: 4,
-            color: "#a3ff12",
-            textTransform: "uppercase",
+            fontSize: 22,
+            color: "#087443",
             position: "relative",
-            marginBottom: 20,
+            marginBottom: 18,
           }}
         >
-          <div style={{ width: 10, height: 10, borderRadius: 5, background: "#a3ff12", display: "flex" }} />
+          <div style={{ width: 10, height: 10, borderRadius: 5, background: "#12b76a", display: "flex" }} />
           {eyebrow}
         </div>
 
@@ -115,6 +111,7 @@ export async function renderOg({
             display: "flex",
             flexDirection: "column",
             fontSize: size,
+            fontWeight: 600,
             letterSpacing: -2.5,
             lineHeight: 1.02,
             position: "relative",
@@ -123,7 +120,7 @@ export async function renderOg({
         >
           <div style={{ display: "flex" }}>{title}</div>
           {accent ? (
-            <div style={{ display: "flex", color: "#a3ff12", fontStyle: "italic", fontFamily: "Space Grotesk Regular" }}>
+            <div style={{ display: "flex", color: "#087443" }}>
               {accent}
             </div>
           ) : null}
@@ -141,16 +138,13 @@ export async function renderOg({
               gap: 8,
             }}
           >
-            <div style={{ display: "flex", fontSize: 64, color: "#a3ff12", letterSpacing: -2 }}>{metric}</div>
+            <div style={{ display: "flex", fontSize: 64, fontWeight: 600, color: "#087443", letterSpacing: -2 }}>{metric}</div>
             {metricLabel ? (
               <div
                 style={{
                   display: "flex",
-                  fontFamily: "JetBrains Mono",
-                  fontSize: 15,
-                  letterSpacing: 3,
-                  color: "#aab1bd",
-                  textTransform: "uppercase",
+                  fontSize: 18,
+                  color: "#56635c",
                   maxWidth: 300,
                   textAlign: "right",
                 }}
@@ -167,18 +161,15 @@ export async function renderOg({
             justifyContent: "space-between",
             marginTop: 36,
             paddingTop: 22,
-            borderTop: "1px solid #2a2f38",
-            fontFamily: "JetBrains Mono",
-            fontSize: 16,
-            letterSpacing: 3,
-            color: "#7d8491",
-            textTransform: "uppercase",
+            borderTop: "1px solid #e2e9e5",
+            fontSize: 19,
+            color: "#56635c",
             position: "relative",
           }}
         >
           <div style={{ display: "flex" }}>{footer ?? site.positioning}</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#a3ff12" }}>
-            <div style={{ width: 10, height: 10, borderRadius: 5, background: "#a3ff12", display: "flex" }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#087443" }}>
+            <div style={{ width: 10, height: 10, borderRadius: 5, background: "#12b76a", display: "flex" }} />
             {site.availability.status}
           </div>
         </div>
@@ -187,9 +178,8 @@ export async function renderOg({
     {
       ...OG_SIZE,
       fonts: [
-        { name: "Space Grotesk", data: display, weight: 500, style: "normal" },
-        { name: "Space Grotesk Regular", data: displayRegular, weight: 400, style: "normal" },
-        { name: "JetBrains Mono", data: mono, weight: 500, style: "normal" },
+        { name: "Instrument Sans", data: semibold, weight: 600, style: "normal" },
+        { name: "Instrument Sans", data: regular, weight: 400, style: "normal" },
       ],
     }
   );

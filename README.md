@@ -1,7 +1,7 @@
 # jaypokharna.vercel.app
 
 Personal site of Jay Pokharna — AI Engineer (LLM agents, RAG and production automations).
-Next.js 14 App Router, three.js (hero, desktop only, lazy-loaded), Lenis smooth scroll, MDX case studies.
+Next.js 14 App Router, three.js 3D hero (desktop only, lazy-loaded), CSS 3D sections, Lenis smooth scroll, MDX case studies. White base, jade/signal green, Instrument Sans.
 
 ## Run
 
