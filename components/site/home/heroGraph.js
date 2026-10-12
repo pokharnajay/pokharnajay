@@ -243,6 +243,9 @@ export async function initHeroGraph(canvasHost, labelHost) {
   io.observe(canvasHost);
   const onVis = () => (document.hidden ? pause() : play());
   document.addEventListener("visibilitychange", onVis);
+  // Draw one frame now, so the canvas has content before the static SVG
+  // fades out — even if rAF is throttled (background tab).
+  frame(performance.now());
   play();
 
   return () => {
