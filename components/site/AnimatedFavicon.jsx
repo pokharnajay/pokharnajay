@@ -19,12 +19,12 @@ export default function AnimatedFavicon() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     const family = getComputedStyle(document.body).fontFamily || "system-ui, sans-serif";
-    const PERIOD = 1400;
+    const PERIOD = 2200;
     const cx = 48, cy = 48;
 
     const draw = (t) => {
       const p = (t % PERIOD) / PERIOD;
-      const ease = 1 - Math.pow(1 - p, 2);
+      // One continuous sine drives everything: no resets, so no jumps.
       const breathe = 0.5 - 0.5 * Math.cos(p * Math.PI * 2);
       ctx.clearRect(0, 0, S, S);
       // Mark: dark rounded square.
@@ -39,9 +39,9 @@ export default function AnimatedFavicon() {
       if (ctx.roundRect) ctx.roundRect(0, 0, S, S, 14);
       else ctx.rect(0, 0, S, S);
       ctx.clip();
-      ctx.fillStyle = `rgba(46,229,157,${0.85 * (1 - ease)})`;
+      ctx.fillStyle = `rgba(46,229,157,${0.45 * breathe})`;
       ctx.beginPath();
-      ctx.arc(cx, cy, 10 + ease * 20, 0, Math.PI * 2);
+      ctx.arc(cx, cy, 10 + breathe * 13, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
       ctx.fillStyle = "#ffffff";
@@ -53,7 +53,7 @@ export default function AnimatedFavicon() {
       const mix = (a, b) => Math.round(a + (b - a) * breathe);
       ctx.fillStyle = `rgb(${mix(10, 70)},${mix(120, 255)},${mix(70, 170)})`;
       ctx.beginPath();
-      ctx.arc(cx, cy, 9 + breathe * 3, 0, Math.PI * 2);
+      ctx.arc(cx, cy, 9 + breathe * 2, 0, Math.PI * 2);
       ctx.fill();
       const url = canvas.toDataURL("image/png");
       // Re-query each frame: Next can swap head tags on navigation.
@@ -64,8 +64,8 @@ export default function AnimatedFavicon() {
     };
 
     const t0 = performance.now();
-    // ~12 fps is plenty for a 16px icon (background tabs get throttled anyway).
-    const id = window.setInterval(() => draw(performance.now() - t0), 83);
+    // ~25 fps; background tabs get throttled anyway.
+    const id = window.setInterval(() => draw(performance.now() - t0), 40);
     draw(0);
     return () => {
       clearInterval(id);
