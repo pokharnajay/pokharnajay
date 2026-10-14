@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useRef } from "react";
 
-/* Pointer-driven 3D tilt with a soft light that follows the cursor. Fine
-   pointers only, motion allowed only; otherwise a plain wrapper. */
+/* Pointer-driven 3D tilt. Fine pointers only, motion allowed only;
+   otherwise a plain wrapper. */
 export default function Tilt({ children, className = "", max = 6 }: { children: React.ReactNode; className?: string; max?: number }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -17,8 +17,6 @@ export default function Tilt({ children, className = "", max = 6 }: { children: 
       y += (ty - y) * 0.12;
       el.style.setProperty("--ry", `${(x * max).toFixed(2)}deg`);
       el.style.setProperty("--rx", `${(-y * max).toFixed(2)}deg`);
-      el.style.setProperty("--mx", `${((x + 1) * 50).toFixed(1)}%`);
-      el.style.setProperty("--my", `${((y + 1) * 50).toFixed(1)}%`);
       raf = inside || Math.abs(x) + Math.abs(y) > 0.002 ? requestAnimationFrame(loop) : 0;
     };
     const onMove = (e: PointerEvent) => {
