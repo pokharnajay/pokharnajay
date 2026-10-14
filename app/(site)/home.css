@@ -7,7 +7,7 @@
 .hero::before {
   content: ""; position: absolute; inset: 0; pointer-events: none;
   background:
-    radial-gradient(900px 520px at 78% 38%, rgba(18,183,106,.09), transparent 62%),
+    radial-gradient(900px 520px at calc(50% + 300px) 42%, rgba(18,183,106,.09), transparent 62%),
     radial-gradient(rgba(13,27,20,.06) 1px, transparent 1px) 0 0 / 22px 22px;
   mask-image: linear-gradient(180deg, #000 55%, transparent);
   -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent);
@@ -312,7 +312,8 @@
   .steps { grid-template-columns: 1fr; gap: 28px; padding-left: 52px; }
   .steps-line { left: 16px; right: auto; top: 0; bottom: 0; width: 2px; height: auto; }
   .steps-line > span { transform-origin: top; transform: scaleY(var(--p)); }
-  .step-n { position: absolute; left: -52px; }
+  .step { position: relative; }
+  .step-n { position: absolute; left: -52px; top: 0; }
   .step h3 { margin-top: 4px; }
 }
 
@@ -386,3 +387,9 @@
 .contact-links a:hover .v { color: var(--signal); }
 .contact-links a:hover .ico { color: var(--signal); transform: translate(2px, -2px); }
 @media (max-width: 860px) { .contact-grid { grid-template-columns: 1fr; } .contact-links a { grid-template-columns: 90px minmax(0, 1fr) 18px; } }
+
+/* Smallest phones: the status line needs the room more than the prompt. */
+@media (max-width: 400px) {
+  .about-status { font-size: 11.5px; padding: 9px 12px; gap: 8px; }
+  .about-status-prompt { display: none; }
+}

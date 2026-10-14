@@ -41,9 +41,7 @@ export default function HomeEffects() {
       const tgt = id ? document.getElementById(id) : null;
       if (!tgt) return;
       e.preventDefault();
-      if (window.__lenis) window.__lenis.scrollTo(tgt, { offset: -72 });
-      else tgt.scrollIntoView({ behavior: reduce ? "auto" : "smooth" });
-      history.replaceState(null, "", `#${id}`);
+      smoothScrollToId(id);
       // Move focus for keyboard and screen-reader users.
       if (!tgt.hasAttribute("tabindex")) tgt.setAttribute("tabindex", "-1");
       tgt.focus({ preventScroll: true });

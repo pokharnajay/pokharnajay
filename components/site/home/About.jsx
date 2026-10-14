@@ -6,7 +6,7 @@ import { site } from "@/lib/site";
 export default function About() {
   return (
     <section className="about" id="about" aria-labelledby="about-title">
-      <div className="wrap about-grid">
+      <div className="wrap about-grid" data-scroll-focus>
         <Tilt className="about-photo" max={5}>
           <Image
             src="/jay-pokharna-portrait.jpg"

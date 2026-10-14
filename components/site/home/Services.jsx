@@ -47,7 +47,7 @@ export default function Services() {
   return (
     <section className="services" id="services" aria-labelledby="services-title">
       <div className="wrap">
-        <div className="services-head">
+        <div className="services-head" data-scroll-focus>
           <div>
             <h2 className="h-section" id="services-title">What I build.</h2>
             <p className="lead">
