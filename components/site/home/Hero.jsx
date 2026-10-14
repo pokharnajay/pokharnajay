@@ -94,7 +94,7 @@ export default function Hero() {
         <div className="hero-copy">
           <p className="hero-hello">
             <span className="dot-live" aria-hidden="true"></span>
-            {site.name}, AI engineer in {site.location.city}
+            <span>{site.name} | AI engineer</span>
           </p>
           <h1 className="h-display hero-title">
             {"AI agents and automations that hold up in production.".split(" ").map((w, i) => (
