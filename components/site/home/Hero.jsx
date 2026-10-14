@@ -7,7 +7,7 @@ import { GRAPH_EDGES, GRAPH_NODES, nodePosition, ringIndex } from "./graphModel"
    only version on phones, low-power devices and with reduced motion. */
 const { counts, index } = ringIndex();
 const ROT_Y = 0.55;
-const ROT_X = 0.18;
+const ROT_X = 0.5;
 function project([x, y, z]) {
   const cx = x * Math.cos(ROT_Y) + z * Math.sin(ROT_Y);
   const cz = -x * Math.sin(ROT_Y) + z * Math.cos(ROT_Y);
@@ -20,7 +20,7 @@ const P = Object.fromEntries(GRAPH_NODES.map((n) => [n.id, project(nodePosition(
 
 function GraphStatic() {
   return (
-    <svg className="graph-static" viewBox="-30 40 620 430" aria-hidden="true" focusable="false">
+    <svg className="graph-static" viewBox="-8 25 600 500" aria-hidden="true" focusable="false">
       <defs>
         <radialGradient id="gHalo" cx="50%" cy="50%" r="50%">
           <stop offset="0%" stopColor="#12b76a" stopOpacity="0.28" />
@@ -31,8 +31,8 @@ function GraphStatic() {
           <stop offset="100%" stopColor="#087443" />
         </radialGradient>
       </defs>
-      <ellipse cx="260" cy="250" rx="118" ry="44" fill="none" stroke="#dbe4df" />
-      <ellipse cx="260" cy="250" rx="210" ry="74" fill="none" stroke="#e3eae6" />
+      <ellipse cx="260" cy="250" rx="108" ry="52" fill="none" stroke="#dbe4df" />
+      <ellipse cx="260" cy="250" rx="196" ry="94" fill="none" stroke="#e3eae6" />
       {GRAPH_EDGES.map(([a, b]) => {
         const A = P[a], B = P[b];
         const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2 - 22;

@@ -24,8 +24,10 @@ export async function initHeroGraph(canvasHost, labelHost) {
 
   const scene = new Scene();
   const camera = new PerspectiveCamera(36, W() / H(), 0.1, 100);
+  // Aim slightly below the core so the tilted orbits sit centred in the box.
+  const LOOK_Y = -0.8;
   camera.position.set(0, 1.1, 14);
-  camera.lookAt(0, 0, 0);
+  camera.lookAt(0, LOOK_Y, 0);
 
   scene.add(new AmbientLight(0xffffff, 1.1));
   const key = new DirectionalLight(0xffffff, 1.6);
@@ -144,6 +146,7 @@ export async function initHeroGraph(canvasHost, labelHost) {
     camera.aspect = W() / H();
     // Pull the camera back on narrow canvases so the outer orbit fits.
     camera.position.z = camera.aspect < 1 ? 14 / Math.max(0.62, camera.aspect) : 14;
+    camera.lookAt(0, LOOK_Y, 0);
     camera.updateProjectionMatrix();
     renderer.setSize(W(), H());
   };
@@ -168,7 +171,7 @@ export async function initHeroGraph(canvasHost, labelHost) {
     const e = 1 - Math.pow(1 - intro, 3);
     world.scale.setScalar(0.82 + 0.18 * e);
     world.rotation.y = t * 0.05 + mouse.x * 0.32 + (1 - e) * -0.6;
-    world.rotation.x = 0.16 + mouse.y * 0.1;
+    world.rotation.x = 0.5 + mouse.y * 0.1;
 
     core.rotation.y += dt * 0.25;
     coreWire.rotation.x += dt * 0.12;

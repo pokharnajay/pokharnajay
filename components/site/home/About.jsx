@@ -8,10 +8,10 @@ export default function About() {
       <div className="wrap about-grid">
         <Tilt className="about-photo" max={5}>
           <Image
-            src="/jay-pokharna.jpg"
-            alt="Jay Pokharna, smiling, in a red checked shirt"
-            width={500}
-            height={500}
+            src="/jay-pokharna-portrait.jpg"
+            alt="Jay Pokharna in a black hoodie at his desk, with monitors showing dashboards behind him"
+            width={960}
+            height={1200}
             sizes="(max-width: 860px) 70vw, 420px"
           />
           <span className="about-badge">

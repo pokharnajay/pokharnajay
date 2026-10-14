@@ -12,7 +12,7 @@ export function personSchema() {
     "@id": PERSON_ID,
     name: site.name,
     url: SITE_URL,
-    image: absoluteUrl("/jay-pokharna.jpg"),
+    image: absoluteUrl("/jay-pokharna-portrait.jpg"),
     jobTitle: site.jobTitle,
     description: site.description,
     email: `mailto:${site.email}`,

@@ -251,10 +251,12 @@ section[id] { scroll-margin-top: 84px; }
 .tilt.is-tilting { transition: none; }
 .tilt::after {
   content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-  background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,.5), transparent 60%);
+  background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,.18), transparent 60%);
   opacity: 0; transition: opacity .4s;
 }
 .tilt.is-tilting::after { opacity: 1; }
+/* On dark surfaces a white glare reads as a grey wash; use a faint green sheen. */
+.featured-visual.tilt::after { background: radial-gradient(360px circle at var(--mx, 50%) var(--my, 50%), rgba(18,183,106,.14), transparent 65%); }
 
 .draft-badge { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; border: 1px solid #f0b37e; color: #9a4b0b; font-size: 12px; font-weight: 600; }
 .case-row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
