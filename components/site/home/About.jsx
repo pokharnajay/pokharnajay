@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Tilt from "@/components/work/Tilt";
+import AboutStatus from "./AboutStatus";
 import { site } from "@/lib/site";
 
 export default function About() {
@@ -14,10 +15,7 @@ export default function About() {
             height={1200}
             sizes="(max-width: 860px) 70vw, 420px"
           />
-          <span className="about-badge">
-            <span className="dot-live" aria-hidden="true"></span>
-            {site.availability.status}
-          </span>
+          <AboutStatus />
         </Tilt>
         <div className="about-copy">
           <h2 className="h-section" id="about-title">Hi, I&rsquo;m Jay.</h2>
