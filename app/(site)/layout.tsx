@@ -1,6 +1,7 @@
 import "./globals.css";
 import Nav from "@/components/site/Nav";
 import SiteFooter from "@/components/site/SiteFooter";
+import AnimatedFavicon from "@/components/site/AnimatedFavicon";
 
 /* Chrome shared by every marketing page. Page CSS (home, article) is
    imported by those routes. */
@@ -11,6 +12,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       <Nav />
       {children}
       <SiteFooter />
+      <AnimatedFavicon />
     </>
   );
 }

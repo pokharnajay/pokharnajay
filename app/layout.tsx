@@ -55,10 +55,11 @@ export const metadata: Metadata = {
     : { index: false, follow: false },
   icons: {
     icon: [
-      { url: "/favicon.svg", type: "image/svg+xml" },
-      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      // ?v= busts browsers' long-lived favicon cache after the redesign.
+      { url: "/favicon.svg?v=7", type: "image/svg+xml" },
+      { url: "/favicon-32x32.png?v=7", sizes: "32x32", type: "image/png" },
     ],
-    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    apple: [{ url: "/apple-touch-icon.png?v=7", sizes: "180x180", type: "image/png" }],
   },
   manifest: "/site.webmanifest",
   verification,
