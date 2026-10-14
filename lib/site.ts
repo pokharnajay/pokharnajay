@@ -26,7 +26,7 @@ export const site = {
   status: "Shipping AI agents",
 
   email: "pokharnajay@gmail.com",
-  resume: "/resume.pdf",
+  resume: "/Jay_Pokharna_Resume.pdf",
 
   location: {
     city: "Pune",
