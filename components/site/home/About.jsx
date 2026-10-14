@@ -14,6 +14,9 @@ export default function About() {
             width={960}
             height={1200}
             sizes="(max-width: 860px) 70vw, 420px"
+            // Fetch with the page (low priority) so it's ready before you scroll here.
+            loading="eager"
+            fetchPriority="low"
           />
           <AboutStatus />
         </Tilt>
