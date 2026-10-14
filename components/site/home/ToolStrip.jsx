@@ -3,7 +3,7 @@ const TOOLS = [
   "Python", "TypeScript", "Node.js", "Next.js", "Cloudflare Workers", "PostgreSQL", "Docker", "GoHighLevel",
 ];
 
-/* A slow marquee of the tools in weekly use; pauses on hover, wraps into a
+/* A slow marquee of the tools in weekly use; wraps into a
    static list with reduced motion. */
 export default function ToolStrip() {
   return (

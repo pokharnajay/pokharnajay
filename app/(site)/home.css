@@ -64,7 +64,6 @@
 .toolstrip-label { flex-shrink: 0; font-size: 14px; color: var(--graphite); max-width: 14ch; line-height: 1.35; }
 .marquee { overflow: hidden; flex: 1; mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
 .marquee-track { display: flex; gap: 48px; width: max-content; animation: marquee 48s linear infinite; padding-right: 48px; }
-.marquee:hover .marquee-track { animation-play-state: paused; }
 .marquee-track li { font-size: 19px; font-weight: 600; letter-spacing: -0.015em; color: var(--graphite); white-space: nowrap; font-variation-settings: "wdth" 92; }
 @keyframes marquee { to { transform: translateX(-50%); } }
 @media (max-width: 640px) { .toolstrip-label { display: none; } }
