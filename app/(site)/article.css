@@ -25,6 +25,25 @@
 .read-progress { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 120; pointer-events: none; }
 .read-progress-bar { height: 100%; background: var(--signal); transform-origin: left; transform: scaleX(0); }
 
+/* Back to top (components/work/client BackToTop) */
+.to-top {
+  position: fixed; right: clamp(16px, 3vw, 32px); bottom: clamp(16px, 3vw, 32px); z-index: 90;
+  width: 52px; height: 52px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--ink); color: #fff;
+  box-shadow: 0 14px 30px -14px rgba(13,27,20,.6);
+  opacity: 0; transform: translateY(14px) scale(.9); pointer-events: none;
+  transition: opacity .35s var(--ease-out), transform .45s var(--ease-out), background .25s;
+}
+.to-top.is-shown { opacity: 1; transform: none; pointer-events: auto; }
+.to-top:hover { background: var(--jade); }
+.to-top-arrow { width: 18px; height: 18px; transition: transform .3s var(--ease-out); }
+.to-top:hover .to-top-arrow { transform: translateY(-2px); }
+.to-top-ring { position: absolute; inset: 3px; width: calc(100% - 6px); height: calc(100% - 6px); transform: rotate(-90deg); }
+.to-top-ring circle { fill: none; stroke-width: 2; }
+.to-top-ring .track { stroke: rgba(255,255,255,.14); }
+.to-top-ring .fill { stroke: var(--signal); stroke-linecap: round; stroke-dasharray: 113.1; stroke-dashoffset: 113.1; }
+
 .cs-header { padding-top: clamp(40px, 6vw, 72px); padding-bottom: clamp(28px, 4vw, 44px); display: flex; flex-direction: column; gap: 22px; }
 .breadcrumb ol { display: flex; flex-wrap: wrap; gap: 6px 10px; font-size: 14px; color: var(--graphite); }
 .breadcrumb li { display: flex; gap: 10px; align-items: center; min-width: 0; }

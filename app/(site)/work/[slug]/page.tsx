@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Diagram from "@/components/work/Diagram";
-import { ReadingProgress, TocSpy } from "@/components/work/client";
+import { BackToTop, ReadingProgress, ScrollToTop, TocSpy } from "@/components/work/client";
 import { mdxComponents } from "@/components/work/mdx-components";
 import { CaseRow, CtaBand, MetricsStrip } from "@/components/work/parts";
 import { JsonLd, PERSON_ID, breadcrumbSchema } from "@/lib/jsonld";
@@ -80,9 +80,11 @@ export default async function CaseStudyPage({ params }: { params: { slug: string
   ]);
 
   return (
-    <main id="main" className="cs-page">
+    <main id="main" className="cs-page" tabIndex={-1}>
       <JsonLd data={[article, crumbs]} />
+      <ScrollToTop />
       <ReadingProgress />
+      <BackToTop />
 
       <header className="wrap cs-header">
         <nav className="breadcrumb" aria-label="Breadcrumb">

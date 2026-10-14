@@ -1,6 +1,6 @@
 "use client";
 import { useEffect } from "react";
-import { useReveal } from "@/lib/motion";
+import { PENDING_SECTION_KEY, smoothScrollToId, useReveal } from "@/lib/motion";
 
 /* Homepage-only behaviour: Lenis smooth scroll (desktop, motion allowed),
    smooth in-page anchor routing that clears the sticky nav, and scroll
@@ -50,8 +50,35 @@ export default function HomeEffects() {
     };
     document.addEventListener("click", onClick);
 
+    /* Arrived from another page via a nav section link: start at the top,
+       then glide down once smooth scrolling is ready. */
+    let pendingTimer = 0;
+    try {
+      const pending = sessionStorage.getItem(PENDING_SECTION_KEY);
+      if (pending) {
+        window.scrollTo(0, 0);
+        // Clear the key only when the scroll fires, so a dev-mode
+        // remount (which cancels this timer) still finds it.
+        // On desktop wait (briefly) for Lenis so the glide is Lenis-driven.
+        const wantsLenis = fine && !reduce;
+        let tries = 0;
+        const go = () => {
+          if (wantsLenis && !window.__lenis && tries++ < 15) {
+            pendingTimer = window.setTimeout(go, 100);
+            return;
+          }
+          try {
+            sessionStorage.removeItem(PENDING_SECTION_KEY);
+          } catch {}
+          smoothScrollToId(pending);
+        };
+        pendingTimer = window.setTimeout(go, 350);
+      }
+    } catch {}
+
     return () => {
       cancelled = true;
+      clearTimeout(pendingTimer);
       document.removeEventListener("click", onClick);
       cancelAnimationFrame(raf);
       if (lenis) {

@@ -194,3 +194,87 @@ export function WorkFilters({ categories }: { categories: { key: string; label: 
     </nav>
   );
 }
+
+/* Case studies always open at the very top, whether reached by a link,
+   prev/next, related cards or back/forward. A #section deep link is left
+   alone. Runs again on the next frame because Next.js applies its own
+   scroll after commit (to the segment, below the sticky nav). */
+export function ScrollToTop() {
+  const pathname = usePathname();
+  useEffect(() => {
+    // Stop the browser restoring an old position on back/forward.
+    const prev = history.scrollRestoration;
+    history.scrollRestoration = "manual";
+    const restore = () => {
+      history.scrollRestoration = prev;
+    };
+    if (window.location.hash) return restore;
+    const toTop = () => {
+      const lenis = (window as unknown as { __lenis?: { scrollTo: (y: number, o: object) => void } }).__lenis;
+      if (lenis) lenis.scrollTo(0, { immediate: true, force: true });
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
+    };
+    toTop();
+    const raf = requestAnimationFrame(toTop);
+    const t = setTimeout(toTop, 60);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+      restore();
+    };
+  }, [pathname]);
+  return null;
+}
+
+/* Floating "back to top" button for long reads. Appears once the reader
+   has scrolled past the header; a ring around it fills with progress. */
+export function BackToTop() {
+  const [show, setShow] = useState(false);
+  const ringRef = useRef<SVGCircleElement>(null);
+  useEffect(() => {
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      const y = window.scrollY;
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      setShow(y > 480);
+      const p = max > 0 ? Math.min(1, y / max) : 0;
+      if (ringRef.current) ringRef.current.style.strokeDashoffset = String(113.1 * (1 - p));
+    };
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, []);
+  const toTop = () => {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const lenis = (window as unknown as { __lenis?: { scrollTo: (y: number, o: object) => void } }).__lenis;
+    if (lenis && !reduce) lenis.scrollTo(0, { duration: 1.1 });
+    else window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+    (document.getElementById("main") as HTMLElement | null)?.focus({ preventScroll: true });
+  };
+  return (
+    <button
+      type="button"
+      className={"to-top" + (show ? " is-shown" : "")}
+      onClick={toTop}
+      aria-label="Back to top"
+      tabIndex={show ? 0 : -1}
+    >
+      <svg className="to-top-ring" viewBox="0 0 40 40" aria-hidden="true">
+        <circle cx="20" cy="20" r="18" className="track" />
+        <circle cx="20" cy="20" r="18" className="fill" ref={ringRef} />
+      </svg>
+      <svg className="to-top-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M8 13V3M4 7l4-4 4 4" />
+      </svg>
+    </button>
+  );
+}

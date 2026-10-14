@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ReadingProgress } from "@/components/work/client";
+import { BackToTop, ReadingProgress, ScrollToTop } from "@/components/work/client";
 import { mdxComponents } from "@/components/work/mdx-components";
 import { CtaBand } from "@/components/work/parts";
 import { JsonLd, PERSON_ID, breadcrumbSchema } from "@/lib/jsonld";
@@ -46,9 +46,11 @@ export default async function PostPage({ params }: { params: { slug: string } })
     inLanguage: "en",
   };
   return (
-    <main id="main" className="cs-page">
+    <main id="main" className="cs-page" tabIndex={-1}>
       <JsonLd data={[article, breadcrumbSchema([{ name: "Writing", path: "/writing" }, { name: p.title, path: `/writing/${p.slug}` }])]} />
+      <ScrollToTop />
       <ReadingProgress />
+      <BackToTop />
       <header className="wrap cs-header">
         <nav className="breadcrumb" aria-label="Breadcrumb">
           <ol>
