@@ -110,7 +110,7 @@ export default function Hero() {
             <a href="/work" className="btn btn-primary">See case studies</a>
             <a href={site.resume} className="btn btn-ghost">Download resume</a>
           </div>
-          <p className="hero-note">Open to full-time remote AI engineering roles and select projects.</p>
+          <p className="hero-note">Lately: teaching models to say &ldquo;I don&rsquo;t know&rdquo; instead of guessing.</p>
         </div>
 
         <div className={"hero-visual" + (live ? " is-live" : "")} aria-hidden="true">

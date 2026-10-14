@@ -14,7 +14,7 @@ export default function Contact() {
         <div>
           <h2 className="h-section" id="contact-title">Tell me what you&rsquo;d like automated.</h2>
           <p className="lead">
-            Send one paragraph about the problem in your own words. I reply within a business day with a real answer, a few questions, or an honest &ldquo;not a fit&rdquo;. Also open to full-time remote AI engineering roles.
+            Send one paragraph about the problem in your own words. I reply within a business day with a real answer, a few questions, or an honest &ldquo;not a fit&rdquo;. Bonus points if there&rsquo;s an LLM in it that needs to stop guessing.
           </p>
           <a href={`mailto:${site.email}`} className="btn btn-light contact-cta">Email me</a>
         </div>

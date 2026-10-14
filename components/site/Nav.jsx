@@ -55,7 +55,7 @@ export default function Nav() {
         </nav>
         <span className="nav-status">
           <span className="dot-live" aria-hidden="true"></span>
-          {site.availability.status}
+          {site.status}
         </span>
         <a href="/#contact" className="btn btn-primary btn-sm nav-cta">Get in touch</a>
         <button

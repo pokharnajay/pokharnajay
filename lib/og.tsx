@@ -170,7 +170,7 @@ export async function renderOg({
           <div style={{ display: "flex" }}>{footer ?? site.positioning}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#087443" }}>
             <div style={{ width: 10, height: 10, borderRadius: 5, background: "#12b76a", display: "flex" }} />
-            {site.availability.status}
+            {site.status}
           </div>
         </div>
       </div>

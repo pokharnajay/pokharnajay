@@ -101,7 +101,7 @@ export function CtaBand() {
   return (
     <section className="cta-band" aria-labelledby="cta-title">
       <div className="cta-inner">
-        <h2 id="cta-title" className="h-section cta-title">Hiring for AI engineering, or need something built?</h2>
+        <h2 id="cta-title" className="h-section cta-title">Have a workflow that should run itself?</h2>
         <p className="cta-text">Send a short note about the problem. I reply within a business day.</p>
         <div className="cta-actions">
           <a href={`mailto:${site.email}`} className="btn btn-light">Email {site.email}</a>

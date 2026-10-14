@@ -20,14 +20,10 @@ export const site = {
   title: "Jay Pokharna — AI Engineer | LLM Agents & Automation",
   positioning: "AI Engineer — LLM agents, RAG & production automations",
   description:
-    "AI Engineer building LLM agents, RAG systems and production automations with Python, TypeScript, n8n and Make.com. Open to remote roles and select projects.",
+    "AI Engineer building LLM agents, RAG systems and production automations with Python, TypeScript, n8n and Make.com. Agents that show their work.",
 
-  /* Availability: shown in the topbar badge, the stats strip and OG images. */
-  availability: {
-    status: "Open to new roles",
-    short: "Open",
-    note: "remote roles + select projects",
-  },
+  /* Short live-status line next to the green dot in the nav and on OG images. */
+  status: "Shipping AI agents",
 
   email: "pokharnajay@gmail.com",
   resume: "/resume.pdf",

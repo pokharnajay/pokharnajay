@@ -23,7 +23,7 @@ export default function About() {
             I&rsquo;m an AI engineer at {site.employer.name}, based in {site.location.city}. Most of my work sits where LLMs meet operations: an agent that needs a CRM, a document pipeline that needs a human check, a workflow that has to stop failing at 2am.
           </p>
           <p>
-            I&rsquo;ve contributed to 3,000+ automations across 70+ clients, and I care most about the unglamorous parts: error handling, logging, and documentation for whoever inherits the system. I&rsquo;m open to full-time remote AI engineering roles and take on select projects.
+            I&rsquo;ve contributed to 3,000+ automations across 70+ clients, and I care most about the unglamorous parts: error handling, logging, and documentation for whoever inherits the system. Lately that means teaching models to show their work: quotes before scores, confidence before writes, and a person in the loop when it matters.
           </p>
           <dl className="about-facts">
             <div><dt>Based in</dt><dd>{site.location.long}</dd></div>
