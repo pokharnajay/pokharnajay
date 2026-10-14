@@ -47,8 +47,8 @@ export default function Process() {
   }, []);
 
   return (
-    <section className="process" id="process" aria-labelledby="process-title">
-      <div className="wrap" data-scroll-focus>
+    <section className="process" id="process" aria-labelledby="process-title" data-scroll-edge>
+      <div className="wrap">
         <div className="section-head">
           <h2 className="h-section" id="process-title">How a project runs.</h2>
           <p className="lead">Discovery first, quoting second. Built for the person who inherits it.</p>
